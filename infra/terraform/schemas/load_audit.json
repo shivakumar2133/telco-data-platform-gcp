@@ -1,0 +1,16 @@
+[
+  {"name": "run_id", "type": "STRING", "mode": "REQUIRED", "description": "Unique id of the pipeline run"},
+  {"name": "source_system", "type": "STRING", "mode": "REQUIRED", "description": "oracle | mssql | postgres | files | api"},
+  {"name": "object_name", "type": "STRING", "mode": "REQUIRED", "description": "Table, file or endpoint name"},
+  {"name": "load_type", "type": "STRING", "mode": "REQUIRED", "description": "FULL | INCREMENTAL | FILE"},
+  {"name": "watermark_from", "type": "TIMESTAMP", "mode": "NULLABLE"},
+  {"name": "watermark_to", "type": "TIMESTAMP", "mode": "NULLABLE"},
+  {"name": "source_row_count", "type": "INT64", "mode": "NULLABLE", "description": "Rows read from the source"},
+  {"name": "loaded_row_count", "type": "INT64", "mode": "NULLABLE", "description": "Rows written to Bronze"},
+  {"name": "source_checksum", "type": "STRING", "mode": "NULLABLE", "description": "Hash of the extracted data"},
+  {"name": "gcs_uri", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "status", "type": "STRING", "mode": "REQUIRED", "description": "RUNNING | SUCCESS | FAILED"},
+  {"name": "error_message", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "started_at", "type": "TIMESTAMP", "mode": "REQUIRED"},
+  {"name": "finished_at", "type": "TIMESTAMP", "mode": "NULLABLE"}
+]

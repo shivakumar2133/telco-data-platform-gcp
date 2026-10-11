@@ -13,6 +13,8 @@ Python · SQL · BigQuery · GCS · Airflow · dbt · Terraform · Docker · Git
 ## Status
 - [x] Phase 0: Foundations (env, GCP project, cost guardrails, repo skeleton)
 - [x] Phase 1: Synthetic data with injected defects + Oracle / SQL Server / PostgreSQL / REST API sources
+- [x] Phase 2: Terraform - lake bucket, medallion datasets, least-privilege service accounts, Secret Manager
+- [x] Phase 3: Ingestion to Bronze - full + incremental (watermark CDC), files with quarantine, paginated API with retries, audit trail
 
 ## Source systems
 | System | Tech | Data |
@@ -34,6 +36,29 @@ the data quality checks catch them. See [docs/sources.md](docs/sources.md).
     make test
     make check             # Phase 0 checks
     make phase1            # generate data, start sources, load, verify
+    make tf-init tf-plan tf-apply secrets-push verify2   # GCP infrastructure
+    make drop-files ingest verify3                       # sources -> Bronze
+    make ingest-local                                    # same pipeline offline, no GCP
+
+## Ingestion (Bronze)
+| Source | Pattern | Bronze table |
+|---|---|---|
+| Oracle / SQL Server / PostgreSQL | full, incremental on `updated_at`, child-of-parent | `bronze.<system>__<table>` |
+| CDR CSV, alarm JSON, SLA XLSX | landing/ -> validate -> raw/ (or quarantine/) -> archive/ | `bronze.files__<object>` |
+| Tickets REST API | paginated, `updated_since` watermark, retry on 429/5xx | `bronze.api__tickets` |
+
+Every load is recorded in `ops.load_audit` (source vs loaded counts, checksum, watermark range).
+Design decisions: `docs/adr/0003-ingestion-design.md`.
+
+## Security model
+| Service account | Lake bucket | bronze | silver | gold | ops | secrets |
+|---|---|---|---|---|---|---|
+| sa-ingest | read/write | write | - | - | write | read |
+| sa-transform | read | read | write | write | write | - |
+| sa-reporting | - | - | - | read | read | - |
+
+No service-account keys: developers impersonate, CI uses Workload Identity Federation.
+Least privilege is tested by `make verify2`. See `docs/adr/0002-iam-secrets-keyless.md`.
 
 ## Cost controls
 Budget alert (£20, credits excluded), BigQuery 30 GiB/day query quota,

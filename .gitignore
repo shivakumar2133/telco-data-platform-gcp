@@ -36,3 +36,6 @@ orchestration/logs/
 # OS / IDE
 .DS_Store
 .vscode/
+
+# Phase 3 offline runs
+local_run/

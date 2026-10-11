@@ -1,0 +1,40 @@
+# Extraction catalogue: WHAT to extract and HOW. Code reads this; adding a table = adding a line.
+#
+# mode:
+#   full         read the whole table every run (small reference tables)
+#   incremental  rows where <watermark_column> > last successful watermark
+#   child        rows whose PARENT changed: for tables without their own timestamp
+#                (invoice_lines only change when their invoice changes)
+# lookback_minutes: re-read this much before the watermark to catch late commits.
+#   0 here so re-runs are exactly idempotent; production systems often use 5-60.
+
+postgres:
+  database: network
+  schema: public
+  objects:
+    - {name: sites,   primary_key: [site_id],   mode: incremental, watermark_column: updated_at}
+    - {name: cells,   primary_key: [cell_id],   mode: incremental, watermark_column: updated_at}
+    - {name: devices, primary_key: [device_id], mode: incremental, watermark_column: updated_at}
+
+mssql:
+  database: crm
+  schema: dbo
+  objects:
+    - {name: products,      primary_key: [product_id],      mode: full}
+    - {name: customers,     primary_key: [customer_id],     mode: incremental, watermark_column: updated_at}
+    - {name: subscriptions, primary_key: [subscription_id], mode: incremental, watermark_column: updated_at}
+
+oracle:
+  schema: billing
+  objects:
+    - {name: billing_accounts, primary_key: [account_id], mode: incremental, watermark_column: updated_at}
+    - {name: invoices,         primary_key: [invoice_id], mode: incremental, watermark_column: updated_at}
+    - name: invoice_lines
+      primary_key: [line_id]
+      mode: child
+      parent: invoices
+      parent_key: invoice_id
+      watermark_column: updated_at   # the PARENT's column
+    - {name: payments, primary_key: [payment_id], mode: incremental, watermark_column: created_at}
+
+lookback_minutes: 0

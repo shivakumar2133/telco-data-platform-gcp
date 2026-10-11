@@ -22,3 +22,13 @@ def test_missing_project_id_raises(monkeypatch):
     monkeypatch.delenv("GCP_PROJECT_ID", raising=False)
     with pytest.raises(RuntimeError, match="GCP_PROJECT_ID is not set"):
         get_settings(load_env_file=False)
+
+
+def test_names_match_terraform(monkeypatch):
+    monkeypatch.setenv("GCP_PROJECT_ID", "demo-project")
+    s = get_settings(load_env_file=False)
+    assert s.lake_bucket == "demo-project-lake"
+    assert s.sa_email("ingest") == "sa-ingest@demo-project.iam.gserviceaccount.com"
+    assert s.table("ops", "load_audit") == "demo-project.ops.load_audit"
+    with pytest.raises(ValueError):
+        s.sa_email("admin")

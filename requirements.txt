@@ -16,6 +16,10 @@ oracledb>=2.4,<4
 pymssql>=2.3,<3
 psycopg[binary]>=3.2,<4
 
+# Ingestion (Phase 3)
+pyarrow>=15,<25
+pyyaml>=6.0,<7
+
 # REST API (mock server + client)
 fastapi>=0.115,<1
 uvicorn[standard]>=0.30,<1
