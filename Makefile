@@ -5,6 +5,7 @@ VENV := .venv
 PY   := $(VENV)/bin/python
 COMPOSE_SOURCES := docker compose --env-file .env -f sources/docker-compose.sources.yml
 
+AIRFLOW         := docker compose --env-file .env -f orchestration/docker-compose.airflow.yml
 TF        := terraform -chdir=infra/terraform
 DEV_EMAIL  = $(shell gcloud config get-value account 2>/dev/null)
 TF_VARS    = -var-file=envs/dev.tfvars -var="project_id=$(GCP_PROJECT_ID)" \
@@ -15,7 +16,9 @@ TF_VARS    = -var-file=envs/dev.tfvars -var="project_id=$(GCP_PROJECT_ID)" \
         load-sources verify1 phase1 \
         tf-init tf-fmt tf-validate tf-plan tf-apply tf-output tf-destroy secrets-push verify2 \
         drop-files ingest-db ingest-api ingest-files ingest ingest-full simulate-changes \
-        ingest-local verify3
+        ingest-local verify3 \
+        airflow-env airflow-build airflow-up airflow-status airflow-down airflow-reset \
+        airflow-logs airflow-check airflow-test airflow-backfill
 
 # ---------- Phase 0
 setup:
@@ -122,3 +125,37 @@ ingest-local:  ## offline dry run: lake + metadata under ./local_run, no GCP
 
 verify3:
 	$(PY) -m scripts.verify_phase3
+
+# ---------- Phase 4: orchestration (Airflow 3 in Docker). Start the sources first.
+airflow-env:  ## add Airflow secrets/settings to .env (only missing ones)
+	bash scripts/airflow_env.sh
+
+airflow-build:
+	$(AIRFLOW) build
+
+airflow-up:
+	$(AIRFLOW) up -d
+
+airflow-status:
+	$(AIRFLOW) ps
+
+airflow-down:
+	$(AIRFLOW) down
+
+airflow-reset:  ## also deletes Airflow's metadata DB (run history)
+	$(AIRFLOW) down -v
+
+airflow-logs:
+	$(AIRFLOW) logs -f --tail=100 airflow-scheduler
+
+airflow-check:  ## DAG import errors + list of DAGs, as Airflow sees them
+	$(AIRFLOW) exec airflow-scheduler airflow dags list-import-errors
+	$(AIRFLOW) exec airflow-scheduler airflow dags list
+
+airflow-test:  ## DAG integrity tests, inside the Airflow image
+	$(AIRFLOW) exec -e PYTHONPATH=/opt/airflow/dags airflow-scheduler \
+		python -m pytest /opt/project/tests/dags -q -p no:cacheprovider
+
+airflow-backfill:  ## replay September's daily file deliveries
+	$(AIRFLOW) exec airflow-scheduler airflow backfill create --dag-id telco_files_daily \
+		--from-date 2026-09-01 --to-date 2026-09-30 --reprocess-behavior completed

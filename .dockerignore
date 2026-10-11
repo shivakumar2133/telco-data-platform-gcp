@@ -1,0 +1,11 @@
+# Keep the Airflow image build context small (only requirements.txt is copied)
+.git
+.venv
+data_generator/output
+local_run
+orchestration/logs
+infra/terraform/.terraform
+**/__pycache__
+**/.pytest_cache
+**/.ruff_cache
+.env

@@ -39,3 +39,6 @@ orchestration/logs/
 
 # Phase 3 offline runs
 local_run/
+
+# Phase 4 Airflow task logs
+orchestration/logs/

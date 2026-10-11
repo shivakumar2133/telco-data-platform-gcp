@@ -15,6 +15,7 @@ Python · SQL · BigQuery · GCS · Airflow · dbt · Terraform · Docker · Git
 - [x] Phase 1: Synthetic data with injected defects + Oracle / SQL Server / PostgreSQL / REST API sources
 - [x] Phase 2: Terraform - lake bucket, medallion datasets, least-privilege service accounts, Secret Manager
 - [x] Phase 3: Ingestion to Bronze - full + incremental (watermark CDC), files with quarantine, paginated API with retries, audit trail
+- [x] Phase 4: Orchestration - Airflow 3.3 (Docker), 3 DAGs, retries, webhook alerts, backfill by logical date
 
 ## Source systems
 | System | Tech | Data |
@@ -39,6 +40,7 @@ the data quality checks catch them. See [docs/sources.md](docs/sources.md).
     make tf-init tf-plan tf-apply secrets-push verify2   # GCP infrastructure
     make drop-files ingest verify3                       # sources -> Bronze
     make ingest-local                                    # same pipeline offline, no GCP
+    make airflow-env airflow-build airflow-up            # Airflow UI on http://localhost:8080
 
 ## Ingestion (Bronze)
 | Source | Pattern | Bronze table |
@@ -49,6 +51,16 @@ the data quality checks catch them. See [docs/sources.md](docs/sources.md).
 
 Every load is recorded in `ops.load_audit` (source vs loaded counts, checksum, watermark range).
 Design decisions: `docs/adr/0003-ingestion-design.md`.
+
+## Orchestration (Airflow 3.3)
+| DAG | Schedule | What it does |
+|---|---|---|
+| `telco_ingest_daily` | 02:00 UTC | 3 databases in parallel (max 2 at once) -> reconciliation gate -> `bronze_ready` asset |
+| `telco_tickets_hourly` | :15 every hour | Incremental tickets from the REST API |
+| `telco_files_daily` | per business day | Deliver that day's CDR + alarm files -> validate -> Bronze. Backfillable |
+
+Tasks retry twice with exponential backoff and alert a chat webhook on final failure.
+Design decisions: `docs/adr/0004-orchestration.md`.
 
 ## Security model
 | Service account | Lake bucket | bronze | silver | gold | ops | secrets |

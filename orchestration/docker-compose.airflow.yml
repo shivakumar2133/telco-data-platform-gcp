@@ -1,0 +1,136 @@
+# Airflow 3.3.2, adapted from the official docker-compose.yaml:
+#   - LocalExecutor instead of Celery (no Redis/worker/flower: ~1.5 GB less RAM)
+#   - metadata DB renamed airflow-db (the sources stack already has a "postgres")
+#   - joins the sources network so tasks reach telco-oracle / telco-mssql / ...
+#   - repo mounted read-only at /opt/project; your gcloud ADC mounted read-only
+#
+# Start from the repo root:  make airflow-up      UI: http://localhost:8080
+name: telco-airflow
+
+x-airflow-common: &airflow-common
+  build:
+    context: ..
+    dockerfile: orchestration/Dockerfile
+  image: telco-airflow:3.3.2
+  env_file:
+    - ../.env
+  environment: &airflow-common-env
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__CORE__AUTH_MANAGER: airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-db/airflow
+    AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY:?run make airflow-env first}
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "true"
+    AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+    AIRFLOW__CORE__EXECUTION_API_SERVER_URL: http://airflow-apiserver:8080/execution/
+    AIRFLOW__API_AUTH__JWT_SECRET: ${AIRFLOW_JWT_SECRET:?run make airflow-env first}
+    AIRFLOW__API_AUTH__JWT_ISSUER: airflow
+    AIRFLOW__API__BASE_URL: http://localhost:8080
+    AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: "true"
+    # ---- pipeline settings (read by the DAGs' bash commands)
+    PIPELINE_PYTHON: /home/airflow/pipeline-venv/bin/python
+    PROJECT_DIR: /opt/project
+    INGEST_EXTRA_ARGS: ""
+    PYTHONDONTWRITEBYTECODE: "1"
+    ORACLE_HOST: telco-oracle
+    MSSQL_HOST: telco-mssql
+    POSTGRES_HOST: telco-postgres
+    TICKETS_API_URL: http://telco-tickets-api:8000
+    GOOGLE_APPLICATION_CREDENTIALS: /home/airflow/gcloud/application_default_credentials.json
+  volumes:
+    - ./dags:/opt/airflow/dags
+    - ./logs:/opt/airflow/logs
+    - ..:/opt/project:ro
+    - ${HOME}/.config/gcloud:/home/airflow/gcloud:ro
+  user: "${AIRFLOW_UID:-50000}:0"
+  networks: [default, sources]
+  depends_on: &airflow-common-depends-on
+    airflow-db:
+      condition: service_healthy
+
+services:
+  airflow-db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - airflow-db-volume:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "airflow"]
+      interval: 10s
+      retries: 5
+      start_period: 5s
+    restart: always
+
+  airflow-apiserver:
+    <<: *airflow-common
+    command: api-server
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/api/v2/monitor/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: always
+    depends_on:
+      <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
+
+  airflow-scheduler:
+    <<: *airflow-common
+    command: scheduler
+    healthcheck:
+      test: ["CMD-SHELL", 'airflow jobs check --job-type SchedulerJob --hostname "$${HOSTNAME}"']
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: always
+    depends_on:
+      <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
+
+  airflow-dag-processor:
+    <<: *airflow-common
+    command: dag-processor
+    healthcheck:
+      test: ["CMD-SHELL", 'airflow jobs check --job-type DagProcessorJob --hostname "$${HOSTNAME}"']
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: always
+    depends_on:
+      <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
+
+  airflow-init:
+    <<: *airflow-common
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        mkdir -p /opt/airflow/logs
+        chown -R "${AIRFLOW_UID:-50000}:0" /opt/airflow/logs
+        /entrypoint airflow version
+    environment:
+      <<: *airflow-common-env
+      _AIRFLOW_DB_MIGRATE: "true"
+      _AIRFLOW_WWW_USER_CREATE: "true"
+      _AIRFLOW_WWW_USER_USERNAME: admin
+      _AIRFLOW_WWW_USER_PASSWORD: ${AIRFLOW_ADMIN_PASSWORD:?run make airflow-env first}
+    user: "0:0"
+
+volumes:
+  airflow-db-volume:
+
+networks:
+  sources:
+    name: telco-sources_default
+    external: true
