@@ -1,0 +1,38 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+
+# Secrets & credentials - never commit
+.env
+*.pem
+*-key.json
+credentials*.json
+service-account*.json
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+
+# dbt
+transform/target/
+transform/dbt_packages/
+transform/logs/
+transform/profiles.yml
+
+# Data & generated output
+data_generator/output/
+*.parquet
+*.csv.gz
+
+# Airflow
+orchestration/logs/
+
+# OS / IDE
+.DS_Store
+.vscode/
