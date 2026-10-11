@@ -15,3 +15,7 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP"]
+
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI declares query/header params as defaults - that is the intended pattern
+extend-immutable-calls = ["fastapi.Header", "fastapi.Query"]

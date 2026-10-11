@@ -1,0 +1,74 @@
+# Local source systems. Start from the repo root with:  make sources-up
+# Passwords come from the repo-root .env (passed with --env-file).
+name: telco-sources
+
+services:
+  oracle:  # Billing system
+    image: gvenzl/oracle-free:23-slim-faststart
+    container_name: telco-oracle
+    environment:
+      ORACLE_PASSWORD: ${ORACLE_PASSWORD:?set ORACLE_PASSWORD in .env}
+    ports: ["1521:1521"]
+    volumes: ["oracle-data:/opt/oracle/oradata"]
+    healthcheck:
+      test: ["CMD", "healthcheck.sh"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+      start_period: 60s
+    restart: unless-stopped
+
+  mssql:  # CRM system
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: telco-mssql
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: Developer
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:?set MSSQL_SA_PASSWORD in .env}
+    ports: ["1433:1433"]
+    volumes: ["mssql-data:/var/opt/mssql"]
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$${MSSQL_SA_PASSWORD}\" -C -Q 'SELECT 1' || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+      start_period: 30s
+    restart: unless-stopped
+
+  postgres:  # Network inventory
+    image: postgres:16
+    container_name: telco-postgres
+    environment:
+      POSTGRES_USER: network_admin
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: network
+    ports: ["5432:5432"]
+    volumes: ["pg-data:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U network_admin -d network"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  tickets-api:  # Ticketing SaaS (mock)
+    build: ./mock_api
+    container_name: telco-tickets-api
+    environment:
+      TICKETS_FILE: /data/tickets.json
+      TICKETS_API_KEY: ${TICKETS_API_KEY:?set TICKETS_API_KEY in .env}
+      FAILURE_RATE: ${TICKETS_FAILURE_RATE:-0}
+      RATE_LIMIT_PER_SEC: "20"
+    ports: ["8000:8000"]
+    volumes: ["../data_generator/output/api:/data:ro"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  oracle-data:
+  mssql-data:
+  pg-data:
