@@ -22,6 +22,7 @@ exposures:
       - ref('rpt_sla_performance')
       - ref('rpt_dq_latest')
       - ref('rpt_recon_latest')
+      - ref('rpt_pipeline_health')
 
   - name: powerbi_revenue_and_service
     label: Revenue and Service (Power BI)

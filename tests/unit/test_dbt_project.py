@@ -36,7 +36,7 @@ def test_dbt_project_parses(tmp_path, monkeypatch):
     models = [n for n in manifest.nodes.values() if n.resource_type == "model"]
     tests = [n for n in manifest.nodes.values() if n.resource_type == "test"]
     snapshots = [n for n in manifest.nodes.values() if n.resource_type == "snapshot"]
-    assert len(models) == 53 and len(snapshots) == 3
+    assert len(models) == 54 and len(snapshots) == 3
     assert len(tests) >= 130
 
     # every Silver model (except the full-rebuild SLA table) is an incremental MERGE
@@ -54,7 +54,7 @@ def test_dbt_project_parses(tmp_path, monkeypatch):
     dq = {m.name: m for m in models if "dq" in m.tags}
     assert set(dq) == {
         "dq_rule_catalog", "dq_failures", "dq_scorecard", "recon_results", "rpt_dq_latest",
-        "rpt_recon_latest",
+        "rpt_recon_latest", "rpt_pipeline_health",
     }  # fmt: skip
     for name in ("dq_failures", "dq_scorecard", "recon_results"):
         assert dq[name].config.get("full_refresh") is False, name
@@ -91,6 +91,7 @@ def test_dbt_project_parses(tmp_path, monkeypatch):
     assert {m.name for m in reporting} == {
         "rpt_kpi_monthly", "rpt_revenue_assurance", "rpt_network_daily",
         "rpt_sla_performance", "rpt_customer_base", "rpt_dq_latest", "rpt_recon_latest",
+        "rpt_pipeline_health",
     }  # fmt: skip
     for m in reporting:
         sql = re.sub(r"--[^\n]*", "", m.raw_code)  # ignore comments

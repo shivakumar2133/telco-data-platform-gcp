@@ -26,7 +26,8 @@ TF_VARS    = -var-file=envs/dev.tfvars -var="project_id=$(GCP_PROJECT_ID)" \
         airflow-logs airflow-check airflow-test airflow-backfill \
         dbt-debug dbt-parse dbt-build dbt-build-gold dbt-full-refresh dbt-freshness dbt-docs \
         cost-compare dq-capture dq-build dq-report verify7 governance-env verify8 \
-        sql-lint sql-fix ci-local github-vars verify9 dbt-build-reporting verify11
+        sql-lint sql-fix ci-local github-vars verify9 dbt-build-reporting verify11 \
+        cost-report alert-drill verify12
 
 # ---------- Phase 0
 setup:
@@ -244,3 +245,14 @@ dbt-build-reporting:  ## rebuild only the rpt_* tables (Gold must be built)
 
 verify11:  ## reporting tables readable by sa-reporting + the KPIs dashboards must show
 	$(PY) -m scripts.verify_phase11
+
+
+# ---------- Phase 12: monitoring, alerting, cost
+cost-report:  ## BigQuery cost per day / identity / dbt model, from job history
+	$(PY) -m scripts.cost_report
+
+alert-drill:  ## run a deliberately failing job as sa-transform: expect an alert email
+	$(PY) -m scripts.verify_phase12 --drill
+
+verify12:
+	$(PY) -m scripts.verify_phase12

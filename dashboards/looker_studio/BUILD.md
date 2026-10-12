@@ -64,6 +64,12 @@ control and a "Data as of" text box.
 - Table from rpt_recon_latest: check_type, entity, measure, expected, actual, status.
 - Text: "Every number on the other pages is reconciled source -> Bronze -> Silver -> Gold."
 
+### Page 6 - Platform health (ops.rpt_pipeline_health)
+- Table: source_system, object_name, freshness_status, hours_since_success, last_status,
+  problems_last_7d, rows_loaded_last_7d; conditional formatting FRESH green, LATE amber, STALE red.
+- Scorecard: `COUNT(object_name)` filtered to freshness_status != FRESH ("objects not fresh").
+- Text: links to the runbook (`docs/runbook.md`) and the alert policies.
+
 ## 3. Share
 **Share -> Manage access -> Anyone with the link can view** (no PII, owner's credentials).
 Copy the link into `transform/models/exposures.yml` (`url:`) and into the main README.

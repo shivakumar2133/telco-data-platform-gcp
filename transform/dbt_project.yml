@@ -9,6 +9,11 @@ macro-paths: ["macros"]
 test-paths: ["tests"]
 clean-targets: ["target", "dbt_packages", "logs"]
 
+# Every BigQuery job dbt runs carries labels (node_id = which model/test, target_name, ...)
+# so cost can be attributed per model: make cost-report
+query-comment:
+  job-label: true
+
 models:
   telco:
     # Column and table descriptions are written into BigQuery itself

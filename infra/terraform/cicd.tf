@@ -63,16 +63,24 @@ resource "google_service_account_iam_member" "transform_from_main" {
 # raw PII in Bronze) and is deliberately NOT used. "Sees the shape of everything, the
 # data of nothing." If a plan fails with a 403, the error names the missing permission.
 resource "google_project_iam_member" "cicd_metadata_read" {
+  # browser: project metadata | bigquery.metadataViewer: datasets/tables, no data |
+  # securityReviewer: getIamPolicy everywhere | roleViewer: the custom dbt role |
+  # serviceAccountViewer, workloadIdentityPoolViewer: SAs and this pool |
+  # secretmanager.viewer: secret metadata, never values | serviceUsageViewer: APIs |
+  # datacatalog.viewer: policy tag taxonomy | monitoring.viewer: alert policies, channels |
+  # logging.viewer: log-based metrics (not data-access logs, which need privateLogViewer)
   for_each = toset([
-    "roles/browser",                         # project metadata (number, labels)
-    "roles/bigquery.metadataViewer",         # datasets/tables, no table data
-    "roles/iam.securityReviewer",            # getIamPolicy on everything
-    "roles/iam.roleViewer",                  # the custom dbt governance role
-    "roles/iam.serviceAccountViewer",        # service accounts
-    "roles/iam.workloadIdentityPoolViewer",  # this pool and provider
-    "roles/secretmanager.viewer",            # secret metadata, never the values
-    "roles/serviceusage.serviceUsageViewer", # enabled APIs
-    "roles/datacatalog.viewer",              # policy tag taxonomy
+    "roles/browser",
+    "roles/bigquery.metadataViewer",
+    "roles/iam.securityReviewer",
+    "roles/iam.roleViewer",
+    "roles/iam.serviceAccountViewer",
+    "roles/iam.workloadIdentityPoolViewer",
+    "roles/secretmanager.viewer",
+    "roles/serviceusage.serviceUsageViewer",
+    "roles/datacatalog.viewer",
+    "roles/monitoring.viewer",
+    "roles/logging.viewer",
   ])
 
   project = var.project_id

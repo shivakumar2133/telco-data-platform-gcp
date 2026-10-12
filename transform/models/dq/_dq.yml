@@ -63,3 +63,12 @@ models:
           - accepted_values:
               arguments:
                 values: ['PASS', 'FAIL', 'NO_DATA']
+
+  - name: rpt_pipeline_health
+    description: Last successful load, lateness and problems per source object (from ops.load_audit).
+    columns:
+      - name: freshness_status
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['FRESH', 'LATE', 'STALE', 'NO_SUCCESS_30D']
