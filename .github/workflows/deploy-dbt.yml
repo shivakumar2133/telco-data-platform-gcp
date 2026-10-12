@@ -61,7 +61,7 @@ jobs:
             echo "dbt=false" >> "$GITHUB_OUTPUT"; echo "No dbt changes - nothing to deploy."
           fi
 
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         if: steps.changes.outputs.dbt == 'true'
         with:
           python-version: "3.12"
