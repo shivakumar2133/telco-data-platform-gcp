@@ -1,0 +1,218 @@
+version: 2
+
+# Gold star schema. Every fact foreign key must resolve to a dimension row; references
+# that can't be resolved point to the Unknown member (-1) instead of dropping the fact,
+# so revenue and call counts always reconcile with Silver.
+
+models:
+  # ------------------------------------------------------------------ dimensions
+  - name: dim_date
+    description: Calendar 2018-2027. date_key = YYYYMMDD.
+    columns:
+      - name: date_key
+        data_tests: [unique, not_null]
+
+  - name: dim_customer
+    description: Customer, SCD Type 2. One row per customer version; -1 = Unknown customer.
+    columns:
+      - name: customer_sk
+        description: Surrogate key of the VERSION (customer_id + valid_from).
+        data_tests: [unique, not_null]
+      - name: customer_id
+        data_tests:
+          - not_null
+          - scd2_valid_ranges
+      - name: valid_from
+        description: First version starts 1900-01-01 so historic facts always find a version.
+      - name: valid_to
+        description: Exclusive end; 9999-12-31 for the current version.
+
+  - name: dim_product
+    description: Product, SCD Type 2 (price changes create versions).
+    columns:
+      - name: product_sk
+        data_tests: [unique, not_null]
+      - name: product_id
+        data_tests:
+          - not_null
+          - scd2_valid_ranges
+
+  - name: dim_subscription
+    description: Subscription (Type 1). Bridges a phone number to its customer and product.
+    columns:
+      - name: subscription_sk
+        data_tests: [unique, not_null]
+      - name: subscription_id
+        data_tests: [unique, not_null]
+      - name: is_orphan
+        description: TRUE when the subscription's customer no longer exists in CRM.
+
+  - name: dim_cell
+    description: Radio cell with its site (denormalised).
+    columns:
+      - name: cell_sk
+        data_tests: [unique, not_null]
+      - name: cell_id
+        data_tests: [unique, not_null]
+
+  - name: dim_device
+    description: Network device with its site (denormalised).
+    columns:
+      - name: device_sk
+        data_tests: [unique, not_null]
+      - name: device_id
+        data_tests: [unique, not_null]
+
+  - name: dim_sla
+    description: SLA targets per tier and priority.
+    columns:
+      - name: sla_sk
+        data_tests: [unique, not_null]
+
+  # ------------------------------------------------------------------ facts
+  - name: fct_calls
+    description: One row per call detail record, joined to the customer/product versions valid at call time.
+    columns:
+      - name: cdr_id
+        data_tests:
+          - unique
+          - not_null
+          - keys_match_source:
+              arguments:
+                source_relation: ref('usage_cdrs')
+      - name: charge_amount
+        data_tests:
+          - column_sum_matches:
+              arguments:
+                compare_relation: ref('usage_cdrs')
+      - name: customer_sk
+        data_tests:
+          - not_null
+          - relationships:
+              arguments: {to: ref('dim_customer'), field: customer_sk}
+      - name: product_sk
+        data_tests:
+          - relationships:
+              arguments: {to: ref('dim_product'), field: product_sk}
+      - name: subscription_sk
+        data_tests:
+          - relationships:
+              arguments: {to: ref('dim_subscription'), field: subscription_sk}
+      - name: cell_sk
+        data_tests:
+          - not_null
+          - relationships:
+              arguments: {to: ref('dim_cell'), field: cell_sk}
+      - name: date_key
+        data_tests:
+          - relationships:
+              arguments: {to: ref('dim_date'), field: date_key}
+
+  - name: fct_invoice_lines
+    description: One row per invoice line - the revenue fact.
+    columns:
+      - name: line_id
+        data_tests:
+          - unique
+          - not_null
+          - keys_match_source:
+              arguments:
+                source_relation: ref('billing_invoice_lines')
+      - name: amount
+        data_tests:
+          - column_sum_matches:
+              arguments:
+                compare_relation: ref('billing_invoice_lines')
+      - name: customer_sk
+        data_tests:
+          - relationships:
+              arguments: {to: ref('dim_customer'), field: customer_sk}
+      - name: product_sk
+        data_tests:
+          - relationships:
+              arguments: {to: ref('dim_product'), field: product_sk}
+
+  - name: fct_invoices
+    description: One row per invoice with line total, payments and outstanding balance.
+    columns:
+      - name: invoice_id
+        data_tests:
+          - unique
+          - not_null
+          - keys_match_source:
+              arguments:
+                source_relation: ref('billing_invoices')
+      - name: total_amount
+        data_tests:
+          - column_sum_matches:
+              arguments:
+                compare_relation: ref('billing_invoices')
+      - name: lines_total
+        data_tests:
+          - column_sum_matches:
+              arguments:
+                compare_relation: ref('billing_invoice_lines')
+                compare_column: amount
+      - name: dq_header_line_mismatch
+        description: TRUE when the header total differs from the sum of lines (known billing defect).
+
+  - name: fct_tickets
+    description: One row per ticket, with its SLA target and breach flag.
+    columns:
+      - name: ticket_id
+        data_tests:
+          - unique
+          - not_null
+          - keys_match_source:
+              arguments:
+                source_relation: ref('service_tickets')
+      - name: customer_sk
+        data_tests:
+          - relationships:
+              arguments: {to: ref('dim_customer'), field: customer_sk}
+      - name: sla_sk
+        data_tests:
+          - relationships:
+              arguments: {to: ref('dim_sla'), field: sla_sk}
+
+  - name: fct_network_faults
+    description: One row per network alarm, with whether it led to a customer ticket.
+    columns:
+      - name: alarm_id
+        data_tests:
+          - unique
+          - not_null
+          - keys_match_source:
+              arguments:
+                source_relation: ref('network_alarms')
+      - name: device_sk
+        data_tests:
+          - relationships:
+              arguments: {to: ref('dim_device'), field: device_sk}
+
+  # ------------------------------------------------------------------ marts
+  - name: mart_revenue_assurance
+    description: Rated usage vs billed usage per subscription per month, classified.
+    columns:
+      - name: assurance_status
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['MATCHED', 'LEAKAGE', 'UNBILLED_NO_ACCOUNT', 'UNDER_BILLED', 'OVER_BILLED']
+      - name: rated_amount
+        description: Must equal total CDR charges - proves no fan-out in the comparison.
+        data_tests:
+          - column_sum_matches:
+              arguments:
+                compare_relation: ref('fct_calls')
+                compare_column: charge_amount
+
+  - name: mart_cell_daily
+    description: Calls, drops and drop rate per cell per day.
+    columns:
+      - name: call_attempts
+        data_tests:
+          - column_sum_matches:
+              arguments:
+                compare_relation: ref('fct_calls')
+                compare_column: "1"

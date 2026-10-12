@@ -29,6 +29,12 @@ models:
       +schema: silver
       +tags: ["silver"]
       +labels: {layer: silver}
+    gold:
+      # Star schema for BI tools. Read by sa-reporting only.
+      +materialized: table
+      +schema: gold
+      +tags: ["gold"]
+      +labels: {layer: gold}
 
 snapshots:
   telco:

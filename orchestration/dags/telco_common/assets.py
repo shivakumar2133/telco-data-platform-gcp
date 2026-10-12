@@ -8,3 +8,4 @@ from airflow.sdk import Asset
 
 BRONZE_READY = Asset(name="bronze_ready", uri="telco://bronze/ready")
 SILVER_READY = Asset(name="silver_ready", uri="telco://silver/ready")
+GOLD_READY = Asset(name="gold_ready", uri="telco://gold/ready")

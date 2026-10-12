@@ -67,5 +67,16 @@ def test_transform_runs_when_bronze_is_ready(dagbag):
     assert "telco://bronze/ready" in produced
     assert type(transform.timetable).__name__ == "AssetTriggeredTimetable"
     assert "telco://bronze/ready" in repr(transform.timetable.asset_condition)
-    assert [t.task_id for t in transform.tasks] == ["source_freshness", "dbt_build"]
-    assert transform.get_task("dbt_build").trigger_rule == "all_done", "freshness must not block"
+    assert [t.task_id for t in transform.tasks] == [
+        "source_freshness",
+        "dbt_build_silver",
+        "dbt_build_gold",
+    ]
+    silver = transform.get_task("dbt_build_silver")
+    assert silver.trigger_rule == "all_done", "freshness must not block"
+    gold = transform.get_task("dbt_build_gold")
+    assert gold.trigger_rule == "all_success", "gold must not build on a failed silver"
+    assert {a.uri for a in gold.outlets} == {"telco://gold/ready"}
+    # Gold tests compare Gold with Silver: they must not be pulled into the Silver step
+    for task in (silver, gold):
+        assert "--indirect-selection buildable" in task.bash_command

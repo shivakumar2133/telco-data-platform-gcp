@@ -17,6 +17,7 @@ Python · SQL · BigQuery · GCS · Airflow · dbt · Terraform · Docker · Git
 - [x] Phase 3: Ingestion to Bronze - full + incremental (watermark CDC), files with quarantine, paginated API with retries, audit trail
 - [x] Phase 4: Orchestration - Airflow 3.3 (Docker), 3 DAGs, retries, webhook alerts, backfill by logical date
 - [x] Phase 5: Silver with dbt 1.12 - staging views, incremental MERGE, SCD2 snapshots, 59 tests, asset-triggered DAG
+- [x] Phase 6: Gold star schema - 7 dimensions (SCD2 as-of joins, unknown members), 5 facts, revenue-assurance mart, measured partition/cluster savings
 
 ## Source systems
 | System | Tech | Data |
@@ -42,7 +43,8 @@ the data quality checks catch them. See [docs/sources.md](docs/sources.md).
     make drop-files ingest verify3                       # sources -> Bronze
     make ingest-local                                    # same pipeline offline, no GCP
     make airflow-env airflow-build airflow-up            # Airflow UI on http://localhost:8080
-    make dbt-debug dbt-build                             # Bronze -> Silver
+    make dbt-debug dbt-build                             # Bronze -> Silver -> Gold
+    make cost-compare                                    # measured partitioning savings
 
 ## Ingestion (Bronze)
 | Source | Pattern | Bronze table |
@@ -70,6 +72,15 @@ Design decisions: `docs/adr/0004-orchestration.md`.
 version per key. Customers, subscriptions and products have **SCD Type 2** snapshots.
 Tests prove de-duplication, reconciliation to Bronze and standardisation; injected source
 defects surface as warnings. Design: `docs/adr/0005-silver-with-dbt.md`.
+
+## Gold layer (star schema)
+`fct_calls`, `fct_invoice_lines`, `fct_invoices`, `fct_tickets`, `fct_network_faults` with
+`dim_customer` / `dim_product` (SCD2, as-of joins), `dim_subscription`, `dim_cell`, `dim_device`,
+`dim_sla`, `dim_date`. Diagram and grain: [docs/data_model.md](docs/data_model.md).
+
+**Revenue assurance** (`mart_revenue_assurance`) compares rated CDR charges with billed usage per
+subscription: it finds exactly the injected leakage (127 subscriptions, £350.73) plus £40.91 of
+usage on orphan subscriptions that can never be billed.
 
 ## Security model
 | Service account | Lake bucket | bronze | silver | gold | ops | secrets |
