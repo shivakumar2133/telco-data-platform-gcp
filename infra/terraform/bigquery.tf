@@ -6,7 +6,7 @@ locals {
       layer       = "bronze"
       description = "Raw data as received, append-only, plus load metadata"
       expiry_days = null
-      readers     = [local.sa_member.transform]
+      readers     = [local.sa_member.transform, local.sa_member.spark]
       writers     = [local.sa_member.ingest]
     }
     silver = {
@@ -30,12 +30,13 @@ locals {
       readers     = [local.sa_member.reporting]
       writers     = [local.sa_member.ingest, local.sa_member.transform]
     }
+    # Phase 13: sa-spark writes its output here, to compare with dbt's
     scratch = {
       layer       = "scratch"
       description = "Ad-hoc work. Tables auto-delete after 7 days (cost control)"
       expiry_days = 7
       readers     = []
-      writers     = []
+      writers     = [local.sa_member.spark]
     }
   }
 }

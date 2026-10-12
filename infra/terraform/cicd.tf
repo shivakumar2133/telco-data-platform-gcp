@@ -68,7 +68,8 @@ resource "google_project_iam_member" "cicd_metadata_read" {
   # serviceAccountViewer, workloadIdentityPoolViewer: SAs and this pool |
   # secretmanager.viewer: secret metadata, never values | serviceUsageViewer: APIs |
   # datacatalog.viewer: policy tag taxonomy | monitoring.viewer: alert policies, channels |
-  # logging.viewer: log-based metrics (not data-access logs, which need privateLogViewer)
+  # logging.viewer: log-based metrics (not data-access logs, which need privateLogViewer) |
+  # compute.networkViewer: the Spark VPC, subnet and firewall
   for_each = toset([
     "roles/browser",
     "roles/bigquery.metadataViewer",
@@ -81,6 +82,7 @@ resource "google_project_iam_member" "cicd_metadata_read" {
     "roles/datacatalog.viewer",
     "roles/monitoring.viewer",
     "roles/logging.viewer",
+    "roles/compute.networkViewer",
   ])
 
   project = var.project_id

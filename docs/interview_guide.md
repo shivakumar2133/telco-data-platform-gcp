@@ -58,6 +58,15 @@ metadata-only roles instead ("sees the shape of everything, the data of nothing"
 `make dq-report` compares them with the quarantine table record by record and fails CI-style if
 recall < 100%. It even accounts for defects that were quarantined at ingestion (a rejected file).
 
+**6. Two writers, one table.** A local `dbt build` and the GitHub deploy ran in the same minute and
+three tables failed with `412 IF_MATCH`. BigQuery's optimistic concurrency protected the data; the
+lesson was operational: one production writer (orchestrator or CD, with a concurrency group), and
+developers build into their own datasets. Now in the runbook.
+
+**7. Spark vs SQL with evidence.** Rebuilt one mart in PySpark on Dataproc Serverless and reconciled
+it to dbt: identical across 390 day x region groups. dbt stays the default (cheaper, readable by
+analysts, scales to zero); Spark is the choice for non-SQL logic or data outside the warehouse.
+
 ## Likely questions - short answers
 | Question | Answer |
 |---|---|
@@ -72,6 +81,7 @@ recall < 100%. It even accounts for defects that were quarantined at ingestion (
 | Why Airflow *and* GitHub Actions? | Airflow schedules data (time, dependencies, retries, backfills); Actions ships code (tests, plan, deploy). Different jobs. |
 | Secrets? | Secret Manager, values pushed outside Terraform so they never enter state; no SA keys - impersonation locally, WIF in CI. |
 | PII? | Policy tags enforce column access; BI reads de-identified columns; row access policies by region; a test stops PII entering the reporting layer. |
+| Spark or SQL? | Data in BigQuery and set-based logic: SQL/dbt. Logic that needs code (ML, parsing, iterative), data outside the warehouse, or dedicated compute cheaper than slots: Spark. Measured both on the same mart. |
 | What breaks first at 100x? | `fct_calls` merges (already incremental + partitioned); the laptop sources/Airflow (move to Cloud Composer or a managed scheduler); file ingestion (move to event-driven Cloud Run). |
 | What would you do differently in production? | Log-based CDC (Datastream), Composer, an organization for dynamic masking, Dataplex for catalog/DQ at scale, SLO-based freshness alerts. |
 

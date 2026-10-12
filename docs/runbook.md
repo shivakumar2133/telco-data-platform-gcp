@@ -62,6 +62,13 @@ select * from `<project>.ops.rpt_pipeline_health` order by freshness_status desc
   days off. In production this would be a page.
 - One object only: check its last `ops.load_audit` row (`error_message`), then the source itself.
 
+## dbt: `412 Precondition check failed` / `did not meet condition IF_MATCH`
+Two builds updated the same table at the same moment (for example `make dbt-build` on a laptop
+while GitHub's Deploy dbt was running). BigQuery rejects the second update; nothing is corrupted.
+1. `gh run list --workflow deploy-dbt.yml --limit 2` and check Airflow for a running `telco_transform`.
+2. Wait for the other build, then re-run once. Never run two production builds at once:
+   production is built by Airflow or by Deploy dbt; personal experiments belong in a dev dataset.
+
 ## Budget alert
 1. `make cost-report` - which identity and which dbt model.
 2. Usual suspect: a full refresh of `fct_calls` or a dashboard on DirectQuery. Fix, then check the
