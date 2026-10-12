@@ -4,3 +4,4 @@ region                 = "us-central1"
 env                    = "dev"
 deletion_protection    = false
 archive_retention_days = 90
+github_repository      = "shivakumar2133/telco-data-platform-gcp"

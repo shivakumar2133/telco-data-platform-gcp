@@ -1,0 +1,37 @@
+# SQL style checks for the dbt models (run: make sql-lint; CI runs it on every PR).
+# The jinja templater renders dbt's ref()/source()/config() without a warehouse
+# connection, so linting is fast and needs no credentials.
+[sqlfluff]
+dialect = bigquery
+templater = jinja
+max_line_length = 110
+# Rules switched off on purpose (house style, not bugs):
+#   AL03/LT09  unknown-member rows are positional: select -1, 'UNKNOWN', ...
+#   ST07       join ... using (key) is clearer than on a.key = b.key
+#   ST09       join order follows the star (fact first), not "earlier table first"
+#   LT14       short scalar sub-queries stay on one line
+#   RF04       business column names like `month`, `year` are fine in BigQuery
+exclude_rules = AM04, ST06, RF02, AL03, LT09, ST07, ST09, LT14, RF04
+
+[sqlfluff:templater:jinja]
+apply_dbt_builtins = True
+load_macros_from_path = transform/macros
+
+# dbt run-time values the linter doesn't have: stand-ins, used only for linting
+[sqlfluff:templater:jinja:macros]
+lint_dq_run_at = {% macro dq_run_at() %}timestamp('2026-01-01 00:00:00'){% endmacro %}
+lint_regional = {% macro regional_principals() %}[]{% endmacro %}
+lint_rls = {% macro row_access_policies(region_column='region') %}select 1{% endmacro %}
+
+[sqlfluff:templater:jinja:context]
+invocation_id = lint
+
+[sqlfluff:indentation]
+tab_space_size = 4
+indented_joins = False
+
+[sqlfluff:rules:capitalisation.keywords]
+capitalisation_policy = lower
+
+[sqlfluff:rules:capitalisation.functions]
+extended_capitalisation_policy = lower

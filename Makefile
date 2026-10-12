@@ -25,7 +25,8 @@ TF_VARS    = -var-file=envs/dev.tfvars -var="project_id=$(GCP_PROJECT_ID)" \
         airflow-env airflow-build airflow-up airflow-status airflow-down airflow-reset \
         airflow-logs airflow-check airflow-test airflow-backfill \
         dbt-debug dbt-parse dbt-build dbt-build-gold dbt-full-refresh dbt-freshness dbt-docs \
-        cost-compare dq-capture dq-build dq-report verify7 governance-env verify8
+        cost-compare dq-capture dq-build dq-report verify7 governance-env verify8 \
+        sql-lint sql-fix ci-local github-vars verify9
 
 # ---------- Phase 0
 setup:
@@ -220,3 +221,19 @@ governance-env:  ## copy policy tag ids + data steward from Terraform into .env
 
 verify8:  ## prove masking, row-level security and access denials per service account
 	$(PY) -m scripts.verify_phase8
+
+# ---------- Phase 9: CI/CD (GitHub Actions + Workload Identity Federation)
+sql-lint:  ## sqlfluff on the dbt models (same as CI)
+	$(VENV)/bin/sqlfluff lint transform/models transform/tests transform/snapshots
+
+sql-fix:  ## let sqlfluff fix layout issues (review the diff before committing)
+	$(VENV)/bin/sqlfluff fix transform/models transform/tests transform/snapshots
+
+ci-local: lint test sql-lint tf-validate  ## run the CI checks locally before pushing
+	@echo "CI checks passed locally (DAG tests: make airflow-test)"
+
+github-vars:  ## copy project ids, WIF provider and policy tag ids into GitHub variables
+	bash scripts/github_vars.sh
+
+verify9:
+	bash scripts/verify_phase9.sh

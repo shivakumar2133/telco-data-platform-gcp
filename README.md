@@ -1,5 +1,7 @@
 # Telco Data Platform on GCP
 
+[![CI](https://github.com/shivakumar2133/telco-data-platform-gcp/actions/workflows/ci.yml/badge.svg)](https://github.com/shivakumar2133/telco-data-platform-gcp/actions/workflows/ci.yml)
+
 End-to-end data engineering platform on **synthetic telecom data** (customers,
 billing, CDRs, network faults, tickets, SLAs): Oracle, SQL Server, PostgreSQL,
 files and a REST API → GCS/BigQuery medallion → dbt star schema → Looker Studio & Power BI.
@@ -20,6 +22,7 @@ Python · SQL · BigQuery · GCS · Airflow · dbt · Terraform · Docker · Git
 - [x] Phase 6: Gold star schema - 7 dimensions (SCD2 as-of joins, unknown members), 5 facts, revenue-assurance mart, measured partition/cluster savings
 - [x] Phase 7: Data quality + reconciliation - 24 rules with tolerances, record-level quarantine, scorecard, source-to-Gold reconciliation, 100% of injected defects detected
 - [x] Phase 8: Governance - PII policy tags (column-level security), de-identified BI columns, row-level security by region, custom least-privilege role for dbt
+- [x] Phase 9: CI/CD - GitHub Actions with keyless Workload Identity Federation, Terraform plan on PRs, dbt deploy on main, sqlfluff, policy-as-tests
 
 ## Source systems
 | System | Tech | Data |
@@ -49,6 +52,7 @@ the data quality checks catch them. See [docs/sources.md](docs/sources.md).
     make cost-compare                                    # measured partitioning savings
     make dq-capture dq-build verify7                     # DQ rules, reconciliation, defect report
     make governance-env dbt-build verify8                # policy tags, masking, row-level security
+    make ci-local                                        # the CI checks, before you push
 
 ## Ingestion (Bronze)
 | Source | Pattern | Bronze table |
@@ -107,6 +111,17 @@ Detection is measured against the 20 injected defect types (`make dq-report`):
 
 Design: `docs/adr/0007-data-quality-and-reconciliation.md`.
 
+## CI/CD
+| Workflow | Trigger | Cloud identity | What it proves / does |
+|---|---|---|---|
+| CI | every PR + push | none | ruff, pytest (dbt parse, PII-tag coverage, DQ rule coverage, workflow security rules), sqlfluff, DAG integrity, Terraform fmt/validate |
+| Terraform plan | PRs changing `infra/` | `sa-cicd` (metadata only) | plan posted as a PR comment; a human applies |
+| Deploy dbt | green CI on `main` | `sa-transform` | Silver -> Gold -> DQ gate in BigQuery |
+
+No keys anywhere: GitHub's OIDC token is exchanged for a short-lived Google token
+(Workload Identity Federation), and only `main` may act as the production identity.
+Design: `docs/adr/0009-ci-cd.md`.
+
 ## Security model
 | Service account | Lake bucket | bronze | silver | gold | ops | secrets | personal data |
 |---|---|---|---|---|---|---|---|
@@ -114,6 +129,7 @@ Design: `docs/adr/0007-data-quality-and-reconciliation.md`.
 | sa-transform | read | read | write | write | write | - | real values |
 | sa-reporting | - | - | - | read | read | - | de-identified copies only |
 | sa-analyst | - | - | - | 3 tables, North West rows only | - | - | de-identified copies only |
+| sa-cicd | metadata | metadata | metadata | metadata | metadata | metadata | - |
 
 **Column-level security:** PII columns carry policy tags (`telco-pii` taxonomy): only the
 pipeline and the data steward can select `email`; BI identities get Access Denied and use

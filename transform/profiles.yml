@@ -1,6 +1,9 @@
 # dbt connection profile. No secrets here: values come from environment variables
-# (.env via the Makefile, or the Airflow container), and authentication is your
-# gcloud login IMPERSONATING sa-transform - no key file.
+# (.env via the Makefile, the Airflow container, or GitHub variables), and
+# authentication is keyless:
+# your gcloud login (or Airflow's) IMPERSONATES sa-transform. In GitHub Actions on main
+# the job already IS sa-transform (Workload Identity), so the deploy workflow sets
+# DBT_IMPERSONATE_SA="" to switch impersonation off.
 telco:
   target: dev
   outputs:

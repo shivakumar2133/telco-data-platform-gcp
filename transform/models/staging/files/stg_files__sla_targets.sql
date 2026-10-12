@@ -9,7 +9,7 @@ with source as (
 ),
 
 latest_file as (
-    select * from source
+    select * from source  -- noqa: AL04
     where _ingested_at = (select max(_ingested_at) from source)
 ),
 
