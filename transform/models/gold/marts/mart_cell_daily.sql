@@ -1,9 +1,12 @@
 -- Network quality per cell per day: the dropped-call rate is the headline KPI.
 -- Pre-aggregated so dashboards read thousands of rows, not 1.1 million.
+-- Row-level security by region + table grant for regional analysts (macros/governance.sql)
 {{
     config(
         partition_by={'field': 'call_date', 'data_type': 'date', 'granularity': 'day'},
-        cluster_by=['region', 'cell_id']
+        cluster_by=['region', 'cell_id'],
+        post_hook="{{ row_access_policies('region') }}",
+        grants={'roles/bigquery.dataViewer': regional_principals()},
     )
 }}
 

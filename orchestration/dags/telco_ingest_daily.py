@@ -1,7 +1,8 @@
 """
 ### Daily database ingestion -> Bronze
 
-Extracts the three source databases incrementally (watermark CDC), then runs
+Extracts the three source databases incrementally (watermark CDC), captures
+source control totals (row counts, money sums) for reconciliation, then runs
 the Bronze reconciliation. If reconciliation passes, the `bronze_ready` asset is
 updated, which triggers the dbt transformation DAG (`telco_transform`).
 
@@ -41,6 +42,13 @@ with DAG(
                 bash_command=ingest(f"db --system {system}"),
             )
 
+    # Independent "expected" totals, read from the sources right after extraction.
+    # dbt's recon_results compares them with Bronze and Silver (telco_transform).
+    capture_totals = BashOperator(
+        task_id="capture_source_totals",
+        bash_command=pipeline("quality.capture_source_totals $INGEST_EXTRA_ARGS"),
+    )
+
     reconcile = BashOperator(
         task_id="reconcile_bronze",
         bash_command=pipeline("scripts.verify_phase3"),
@@ -48,4 +56,4 @@ with DAG(
         outlets=[BRONZE_READY],
     )
 
-    extract_databases >> reconcile
+    extract_databases >> capture_totals >> reconcile

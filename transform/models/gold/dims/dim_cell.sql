@@ -1,5 +1,11 @@
 -- Radio cell dimension, denormalised with its site (a star, not a snowflake:
 -- BI tools get region/site in one join).
+-- Row-level security by region + table grant for regional analysts (macros/governance.sql)
+{{ config(
+    post_hook="{{ row_access_policies('region') }}",
+    grants={'roles/bigquery.dataViewer': regional_principals()},
+) }}
+
 select
     {{ surrogate_key(['c.cell_id']) }} as cell_sk,
     c.cell_id,

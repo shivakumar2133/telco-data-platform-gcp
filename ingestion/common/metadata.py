@@ -68,6 +68,7 @@ class MetaStore(Protocol):
     def set_watermark(self, system: str, obj: str, column: str, value: datetime) -> None: ...
     def write_audit(self, record: AuditRecord) -> None: ...
     def processed_file_checksums(self) -> set[str]: ...
+    def append_rows(self, table: str, rows: list[dict]) -> None: ...
 
 
 class BronzeLoader(Protocol):
@@ -117,6 +118,15 @@ class LocalMetaStore:
 
     def audit_rows(self) -> list[dict]:
         return self._rows(self.audit_path)
+
+    def append_rows(self, table: str, rows: list[dict]) -> None:
+        """Append rows to <root>/<table>.jsonl (any ops table, e.g. source_control_totals)."""
+        with (self.root / f"{table}.jsonl").open("a") as f:
+            for row in rows:
+                f.write(json.dumps(row, default=str) + "\n")
+
+    def rows(self, table: str) -> list[dict]:
+        return self._rows(self.root / f"{table}.jsonl")
 
 
 class LocalBronzeLoader:
@@ -177,6 +187,11 @@ class BigQueryMetaStore:
 
     def write_audit(self, record: AuditRecord) -> None:
         self._append_json(self.audit_table, [record.to_json()])
+
+    def append_rows(self, table: str, rows: list[dict]) -> None:
+        """Append rows to ops.<table> with a load job (free, unlike streaming inserts)."""
+        if rows:
+            self._append_json(f"{self.client.project}.ops.{table}", rows)
 
     def processed_file_checksums(self) -> set[str]:
         sql = f"""

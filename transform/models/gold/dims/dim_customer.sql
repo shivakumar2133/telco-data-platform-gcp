@@ -6,7 +6,12 @@
 --    in August would find no matching version.
 --  * an Unknown member (customer_sk = -1) so facts whose customer can't be resolved
 --    (orphan subscriptions, unknown ticket customers) are kept, not dropped.
-{{ config(cluster_by=['customer_id']) }}
+-- Row-level security by region + table grant for regional analysts (macros/governance.sql)
+{{ config(
+    cluster_by=['customer_id'],
+    post_hook="{{ row_access_policies('region') }}",
+    grants={'roles/bigquery.dataViewer': regional_principals()},
+) }}
 
 with versions as (
     select

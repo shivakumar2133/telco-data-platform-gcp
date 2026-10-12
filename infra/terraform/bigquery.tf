@@ -79,3 +79,19 @@ resource "google_bigquery_table" "watermarks" {
   deletion_protection = var.deletion_protection
   schema              = file("${path.module}/schemas/watermarks.json")
 }
+
+# Phase 7: control totals read straight from the source databases after extraction.
+# The independent "expected" side of reconciliation (written by sa-ingest, read by dbt).
+resource "google_bigquery_table" "source_control_totals" {
+  dataset_id          = module.datasets["ops"].dataset_id
+  table_id            = "source_control_totals"
+  description         = "Row counts and money totals per source table, captured after each extraction"
+  deletion_protection = var.deletion_protection
+  schema              = file("${path.module}/schemas/source_control_totals.json")
+
+  time_partitioning {
+    type  = "DAY"
+    field = "captured_at"
+  }
+  clustering = ["source_system", "object_name"]
+}

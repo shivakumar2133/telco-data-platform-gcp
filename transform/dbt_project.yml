@@ -35,10 +35,30 @@ models:
       +schema: gold
       +tags: ["gold"]
       +labels: {layer: gold}
+    dq:
+      # Data quality + reconciliation results. Append-only history in the ops dataset.
+      +schema: ops
+      +tags: ["dq"]
+      +labels: {layer: ops, kind: dq}
 
 snapshots:
   telco:
     +tags: ["silver", "scd2"]
+    # needed for policy tags (column-level security) to be applied to snapshot columns
+    +persist_docs:
+      relation: true
+      columns: true
+
+# Fail fast if column-level security can't be applied (see macros/governance.sql)
+on-run-start:
+  - "{{ check_governance_env() }}"
+
+vars:
+  # Row-level security entitlements (Phase 8). Short service-account names: sa-<name>.
+  # Everyone not listed sees no rows of the protected tables.
+  rls_full_access: ["transform", "reporting"]
+  rls_regions:
+    "North West": ["analyst"]
 
 data_tests:
   telco:

@@ -1,0 +1,14 @@
+version: 2
+
+# Pipeline metadata written by the ingestion code (Phase 3) and quality/capture_source_totals.py.
+sources:
+  - name: ops
+    schema: ops
+    description: Operational metadata - load audit trail, watermarks, source control totals.
+    tables:
+      - name: load_audit
+        description: One row per extracted object or file per run, with counts and status.
+      - name: source_control_totals
+        description: >
+          Row counts and money totals read directly from the source databases right after
+          extraction. The independent "expected" side of reconciliation.

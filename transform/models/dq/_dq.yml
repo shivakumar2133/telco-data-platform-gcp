@@ -1,0 +1,65 @@
+version: 2
+
+models:
+  - name: dq_rule_catalog
+    description: Every data quality rule, its dimension, severity and tolerance. Generated from macros/dq_rules.sql.
+    columns:
+      - name: rule_id
+        data_tests: [unique, not_null]
+      - name: severity
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['error', 'warn']
+      - name: dimension
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['completeness', 'uniqueness', 'validity', 'consistency', 'integrity', 'timeliness', 'accuracy']
+
+  - name: dq_failures
+    description: >
+      Quarantine / exception table. One row per failing record per DQ run, with the full
+      record as JSON. Append-only, partitioned by day, kept 90 days.
+    columns:
+      - name: dq_run_id
+        description: dbt invocation_id - joins to dq_scorecard.
+        data_tests: [not_null]
+      - name: rule_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dq_rule_catalog')
+                field: rule_id
+      - name: record_key
+        description: Business key of the failing record (customer_id, cdr_id, ...).
+        data_tests: [not_null]
+      - name: record_json
+        description: >
+          The failing record as it was when checked. Can contain personal data, so it is
+          tagged restricted - only data stewards see it; masked readers get NULL.
+        policy_tags: ["{{ env_var('DBT_POLICY_TAG_RAW_RECORD', 'unset') }}"]
+
+  - name: dq_scorecard
+    description: One row per rule per run - population, failures, % failed, tolerance and status.
+    columns:
+      - name: status
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['CLEAN', 'TOLERATED', 'BREACHED']
+      - name: population
+        data_tests: [not_null]
+
+  - name: recon_results
+    description: Cross-layer reconciliation (source -> Bronze -> Silver -> Gold), appended every run.
+    columns:
+      - name: check_id
+        data_tests: [not_null]
+      - name: status
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['PASS', 'FAIL', 'NO_DATA']

@@ -26,6 +26,17 @@ models:
         description: First version starts 1900-01-01 so historic facts always find a version.
       - name: valid_to
         description: Exclusive end; 9999-12-31 for the current version.
+      - name: customer_name
+        description: Person name, or company name for business customers.
+        policy_tags: ["{{ env_var('DBT_POLICY_TAG_NAME', 'unset') }}"]
+      - name: first_name
+        policy_tags: ["{{ env_var('DBT_POLICY_TAG_NAME', 'unset') }}"]
+      - name: last_name
+        policy_tags: ["{{ env_var('DBT_POLICY_TAG_NAME', 'unset') }}"]
+      - name: email
+        policy_tags: ["{{ env_var('DBT_POLICY_TAG_EMAIL', 'unset') }}"]
+      - name: postcode
+        policy_tags: ["{{ env_var('DBT_POLICY_TAG_POSTCODE', 'unset') }}"]
 
   - name: dim_product
     description: Product, SCD Type 2 (price changes create versions).
@@ -46,6 +57,8 @@ models:
         data_tests: [unique, not_null]
       - name: is_orphan
         description: TRUE when the subscription's customer no longer exists in CRM.
+      - name: msisdn
+        policy_tags: ["{{ env_var('DBT_POLICY_TAG_PHONE', 'unset') }}"]
 
   - name: dim_cell
     description: Radio cell with its site (denormalised).

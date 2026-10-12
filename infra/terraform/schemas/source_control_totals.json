@@ -1,0 +1,9 @@
+[
+  {"name": "run_id", "type": "STRING", "mode": "REQUIRED", "description": "Capture run id"},
+  {"name": "source_system", "type": "STRING", "mode": "REQUIRED", "description": "oracle | mssql | postgres"},
+  {"name": "object_name", "type": "STRING", "mode": "REQUIRED", "description": "Source table"},
+  {"name": "row_count", "type": "INT64", "mode": "REQUIRED", "description": "COUNT(*) at the source"},
+  {"name": "amount_column", "type": "STRING", "mode": "NULLABLE", "description": "Column summed, if the table carries money"},
+  {"name": "sum_amount", "type": "NUMERIC", "mode": "NULLABLE", "description": "SUM(amount_column) at the source"},
+  {"name": "captured_at", "type": "TIMESTAMP", "mode": "REQUIRED"}
+]

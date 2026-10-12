@@ -25,6 +25,19 @@ models:
                 values: ['ACTIVE', 'SUSPENDED', 'CEASED']
       - name: email
         description: Lower-cased and trimmed. NULL for some records (known source defect).
+        policy_tags: ["{{ env_var('DBT_POLICY_TAG_EMAIL', 'unset') }}"]
+      - name: first_name
+        policy_tags: ["{{ env_var('DBT_POLICY_TAG_NAME', 'unset') }}"]
+      - name: last_name
+        policy_tags: ["{{ env_var('DBT_POLICY_TAG_NAME', 'unset') }}"]
+      - name: address_line1
+        policy_tags: ["{{ env_var('DBT_POLICY_TAG_NAME', 'unset') }}"]
+      - name: msisdn
+        policy_tags: ["{{ env_var('DBT_POLICY_TAG_PHONE', 'unset') }}"]
+      - name: date_of_birth
+        policy_tags: ["{{ env_var('DBT_POLICY_TAG_BIRTH_DATE', 'unset') }}"]
+      - name: postcode
+        policy_tags: ["{{ env_var('DBT_POLICY_TAG_POSTCODE', 'unset') }}"]
       - name: is_valid_email
         description: FALSE when email is missing or malformed.
       - name: is_valid_postcode
@@ -51,6 +64,8 @@ models:
           - keys_match_source:
               arguments:
                 source_relation: source('bronze', 'mssql__subscriptions')
+      - name: msisdn
+        policy_tags: ["{{ env_var('DBT_POLICY_TAG_PHONE', 'unset') }}"]
       - name: customer_id
         description: Some point to customers that no longer exist (orphans, a known CRM defect).
         data_tests:
@@ -204,6 +219,12 @@ models:
         description: Day the call happened (partition column).
       - name: is_late_arrival
         description: TRUE when the record arrived in a later day's file.
+      - name: msisdn_a
+        description: Calling number.
+        policy_tags: ["{{ env_var('DBT_POLICY_TAG_PHONE', 'unset') }}"]
+      - name: msisdn_b
+        description: Called number.
+        policy_tags: ["{{ env_var('DBT_POLICY_TAG_PHONE', 'unset') }}"]
       - name: dq_negative_duration
         description: TRUE when duration_sec < 0 (known mediation defect).
 

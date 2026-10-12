@@ -36,8 +36,8 @@ def test_dbt_project_parses(tmp_path, monkeypatch):
     models = [n for n in manifest.nodes.values() if n.resource_type == "model"]
     tests = [n for n in manifest.nodes.values() if n.resource_type == "test"]
     snapshots = [n for n in manifest.nodes.values() if n.resource_type == "snapshot"]
-    assert len(models) == 42 and len(snapshots) == 3
-    assert len(tests) >= 110
+    assert len(models) == 46 and len(snapshots) == 3
+    assert len(tests) >= 130
 
     # every Silver model (except the full-rebuild SLA table) is an incremental MERGE
     for m in models:
@@ -49,3 +49,32 @@ def test_dbt_project_parses(tmp_path, monkeypatch):
     for m in models:
         if m.name.startswith("fct_"):
             assert m.config.get("partition_by") and m.config.get("cluster_by"), m.name
+
+    # DQ / reconciliation: append-only history that --full-refresh must never wipe
+    dq = {m.name: m for m in models if "dq" in m.tags}
+    assert set(dq) == {"dq_rule_catalog", "dq_failures", "dq_scorecard", "recon_results"}
+    for name in ("dq_failures", "dq_scorecard", "recon_results"):
+        assert dq[name].config.get("full_refresh") is False, name
+        assert dq[name].config.get("partition_by"), name
+    assert all(m.schema == "ops" for m in dq.values())
+
+    # Governance (Phase 8): no personal-data column is published without a policy tag
+    pii_columns = {
+        "email", "msisdn", "msisdn_a", "msisdn_b", "first_name", "last_name",
+        "customer_name", "address_line1", "date_of_birth", "postcode",
+    }  # fmt: skip
+    governed = [n for n in [*models, *snapshots] if n.schema in ("silver", "gold")]
+    for node in governed:
+        if node.config.materialized == "view":
+            continue  # staging views: Silver dataset is readable by sa-transform only
+        for name, col in node.columns.items():
+            if name in pii_columns and not (node.name == "dim_cell" and name == "postcode"):
+                assert col.to_dict().get("policy_tags"), f"{node.name}.{name} has no policy tag"
+
+    # Row-level security: every table with an analyst grant also gets row access policies
+    for m in models:
+        if m.config.get("grants"):
+            hooks = " ".join(h.sql for h in m.config.post_hook)
+            assert "row_access_policies" in hooks, m.name
+    rls = {m.name for m in models if m.config.get("grants")}
+    assert rls == {"dim_customer", "dim_cell", "mart_cell_daily"}

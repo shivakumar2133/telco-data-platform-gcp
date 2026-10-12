@@ -18,6 +18,8 @@ Python · SQL · BigQuery · GCS · Airflow · dbt · Terraform · Docker · Git
 - [x] Phase 4: Orchestration - Airflow 3.3 (Docker), 3 DAGs, retries, webhook alerts, backfill by logical date
 - [x] Phase 5: Silver with dbt 1.12 - staging views, incremental MERGE, SCD2 snapshots, 59 tests, asset-triggered DAG
 - [x] Phase 6: Gold star schema - 7 dimensions (SCD2 as-of joins, unknown members), 5 facts, revenue-assurance mart, measured partition/cluster savings
+- [x] Phase 7: Data quality + reconciliation - 24 rules with tolerances, record-level quarantine, scorecard, source-to-Gold reconciliation, 100% of injected defects detected
+- [x] Phase 8: Governance - PII policy tags, dynamic masking per identity, row-level security by region, custom least-privilege role for dbt
 
 ## Source systems
 | System | Tech | Data |
@@ -45,6 +47,8 @@ the data quality checks catch them. See [docs/sources.md](docs/sources.md).
     make airflow-env airflow-build airflow-up            # Airflow UI on http://localhost:8080
     make dbt-debug dbt-build                             # Bronze -> Silver -> Gold
     make cost-compare                                    # measured partitioning savings
+    make dq-capture dq-build verify7                     # DQ rules, reconciliation, defect report
+    make governance-env dbt-build verify8                # policy tags, masking, row-level security
 
 ## Ingestion (Bronze)
 | Source | Pattern | Bronze table |
@@ -82,12 +86,40 @@ defects surface as warnings. Design: `docs/adr/0005-silver-with-dbt.md`.
 subscription: it finds exactly the injected leakage (127 subscriptions, £350.73) plus £40.91 of
 usage on orphan subscriptions that can never be billed.
 
+## Data quality and reconciliation
+24 rules defined once in `transform/macros/dq_rules.sql` generate three tables in `ops`:
+`dq_rule_catalog` (what is checked), `dq_failures` (every failing record, as JSON) and
+`dq_scorecard` (population, % failed, tolerance, CLEAN / TOLERATED / BREACHED per run).
+An ERROR rule above tolerance stops the pipeline before `gold_ready` is published.
+
+`recon_results` proves rows and money survive every hop: source -> Bronze -> Silver -> Gold,
+using control totals read from the source databases (`quality/capture_source_totals.py`).
+
+Detection is measured against the 20 injected defect types (`make dq-report`):
+
+| Result | Records |
+|---|---:|
+| Injected defects | 9,494 |
+| Flagged by a DQ rule (exact record) | 9,490 |
+| Quarantined at ingestion (rejected alarm export) | 4 |
+| Missed | 0 |
+| False positives | 0 |
+
+Design: `docs/adr/0007-data-quality-and-reconciliation.md`.
+
 ## Security model
-| Service account | Lake bucket | bronze | silver | gold | ops | secrets |
-|---|---|---|---|---|---|---|
-| sa-ingest | read/write | write | - | - | write | read |
-| sa-transform | read | read | write | write | write | - |
-| sa-reporting | - | - | - | read | read | - |
+| Service account | Lake bucket | bronze | silver | gold | ops | secrets | personal data |
+|---|---|---|---|---|---|---|---|
+| sa-ingest | read/write | write | - | - | write | read | - |
+| sa-transform | read | read | write | write | write | - | real values |
+| sa-reporting | - | - | - | read | read | - | masked |
+| sa-analyst | - | - | - | 3 tables, North West rows only | - | - | masked |
+
+**Column-level security:** PII columns carry policy tags (`telco-pii` taxonomy); dynamic
+masking shows each identity a different version of the same table, for example
+`jane.doe@example.com` for the data steward and `XXXXX@example.com` for reporting.
+**Row-level security:** row access policies by region, re-applied by dbt on every build.
+Design: `docs/adr/0008-governance-column-and-row-security.md`.
 
 No service-account keys: developers impersonate, CI uses Workload Identity Federation.
 Least privilege is tested by `make verify2`. See `docs/adr/0002-iam-secrets-keyless.md`.

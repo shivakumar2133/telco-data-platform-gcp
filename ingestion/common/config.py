@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from dotenv import load_dotenv
 
 DATASETS = ("bronze", "silver", "gold", "ops", "scratch")
-SERVICE_ACCOUNTS = ("ingest", "transform", "reporting")
+SERVICE_ACCOUNTS = ("ingest", "transform", "reporting", "analyst")
 
 
 @dataclass(frozen=True)

@@ -13,3 +13,8 @@ output "service_accounts" {
 output "secrets" {
   value = [for s in google_secret_manager_secret.s : s.secret_id]
 }
+
+# Copied into .env by `make governance-env`; dbt attaches these to columns
+output "policy_tags" {
+  value = { for k, t in google_data_catalog_policy_tag.pii : k => t.name }
+}

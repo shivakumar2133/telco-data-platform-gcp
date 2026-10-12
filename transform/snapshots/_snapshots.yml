@@ -19,6 +19,21 @@ snapshots:
       updated_at: updated_at
       hard_deletes: invalidate
       dbt_valid_to_current: "timestamp('9999-12-31')"
+    columns:
+      - name: email
+        policy_tags: ["{{ env_var('DBT_POLICY_TAG_EMAIL', 'unset') }}"]
+      - name: first_name
+        policy_tags: ["{{ env_var('DBT_POLICY_TAG_NAME', 'unset') }}"]
+      - name: last_name
+        policy_tags: ["{{ env_var('DBT_POLICY_TAG_NAME', 'unset') }}"]
+      - name: address_line1
+        policy_tags: ["{{ env_var('DBT_POLICY_TAG_NAME', 'unset') }}"]
+      - name: msisdn
+        policy_tags: ["{{ env_var('DBT_POLICY_TAG_PHONE', 'unset') }}"]
+      - name: date_of_birth
+        policy_tags: ["{{ env_var('DBT_POLICY_TAG_BIRTH_DATE', 'unset') }}"]
+      - name: postcode
+        policy_tags: ["{{ env_var('DBT_POLICY_TAG_POSTCODE', 'unset') }}"]
 
   - name: crm_subscriptions_snapshot
     relation: ref('crm_subscriptions')
@@ -30,6 +45,9 @@ snapshots:
       updated_at: updated_at
       hard_deletes: invalidate
       dbt_valid_to_current: "timestamp('9999-12-31')"
+    columns:
+      - name: msisdn
+        policy_tags: ["{{ env_var('DBT_POLICY_TAG_PHONE', 'unset') }}"]
 
   - name: crm_products_snapshot
     relation: ref('crm_products')

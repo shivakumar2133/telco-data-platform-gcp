@@ -46,7 +46,9 @@ def test_reconciliation_is_last_and_not_retried(dagbag):
     dag = dagbag.dags["telco_ingest_daily"]
     reconcile = dag.get_task("reconcile_bronze")
     assert reconcile.retries == 0
-    assert {t.task_id for t in reconcile.upstream_list} == {
+    assert {t.task_id for t in reconcile.upstream_list} == {"capture_source_totals"}
+    capture = dag.get_task("capture_source_totals")
+    assert {t.task_id for t in capture.upstream_list} == {
         "extract_databases.extract_postgres",
         "extract_databases.extract_mssql",
         "extract_databases.extract_oracle",
@@ -71,12 +73,17 @@ def test_transform_runs_when_bronze_is_ready(dagbag):
         "source_freshness",
         "dbt_build_silver",
         "dbt_build_gold",
+        "dbt_build_dq",
     ]
     silver = transform.get_task("dbt_build_silver")
     assert silver.trigger_rule == "all_done", "freshness must not block"
     gold = transform.get_task("dbt_build_gold")
     assert gold.trigger_rule == "all_success", "gold must not build on a failed silver"
-    assert {a.uri for a in gold.outlets} == {"telco://gold/ready"}
-    # Gold tests compare Gold with Silver: they must not be pulled into the Silver step
-    for task in (silver, gold):
+    assert not gold.outlets, "gold_ready waits for the quality gate"
+    dq = transform.get_task("dbt_build_dq")
+    assert {t.task_id for t in dq.upstream_list} == {"dbt_build_gold"}
+    assert dq.retries == 0 and "tag:dq" in dq.bash_command
+    assert {a.uri for a in dq.outlets} == {"telco://gold/ready"}
+    # Tests that span layers must only run in the step that builds all their parents
+    for task in (silver, gold, dq):
         assert "--indirect-selection buildable" in task.bash_command

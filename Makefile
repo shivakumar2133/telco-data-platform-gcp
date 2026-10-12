@@ -2,6 +2,9 @@
 -include .env
 BQ_LOCATION ?= us-central1
 export GCP_PROJECT_ID BQ_LOCATION
+# Phase 8: policy tag ids + data steward, written to .env by `make governance-env`
+export DATA_STEWARD DBT_POLICY_TAG_EMAIL DBT_POLICY_TAG_PHONE DBT_POLICY_TAG_NAME \
+       DBT_POLICY_TAG_BIRTH_DATE DBT_POLICY_TAG_POSTCODE DBT_POLICY_TAG_RAW_RECORD
 
 VENV := .venv
 PY   := $(VENV)/bin/python
@@ -22,7 +25,7 @@ TF_VARS    = -var-file=envs/dev.tfvars -var="project_id=$(GCP_PROJECT_ID)" \
         airflow-env airflow-build airflow-up airflow-status airflow-down airflow-reset \
         airflow-logs airflow-check airflow-test airflow-backfill \
         dbt-debug dbt-parse dbt-build dbt-build-gold dbt-full-refresh dbt-freshness dbt-docs \
-        cost-compare
+        cost-compare dq-capture dq-build dq-report verify7 governance-env verify8
 
 # ---------- Phase 0
 setup:
@@ -176,9 +179,10 @@ dbt-debug:  ## check the connection and impersonation
 dbt-parse:
 	$(DBT) parse
 
-dbt-build:  ## Silver (views, merges, snapshots) then Gold (star schema), all with tests
+dbt-build:  ## Silver, then Gold, then the DQ + reconciliation gate - same steps as the DAG
 	$(DBT) build --select tag:staging tag:silver $(LAYER)
 	$(DBT) build --select tag:gold $(LAYER)
+	$(DBT) build --select tag:dq $(LAYER)
 
 dbt-build-gold:  ## Gold only (Silver must be built)
 	$(DBT) build --select tag:gold $(LAYER)
@@ -195,3 +199,24 @@ dbt-docs:  ## lineage + docs site on http://localhost:8081
 # ---------- Phase 6: measure partitioning/clustering savings (real BigQuery jobs)
 cost-compare:
 	$(PY) -m scripts.cost_compare
+
+# ---------- Phase 7: data quality + reconciliation
+dq-capture:  ## source control totals (row counts, money) -> ops.source_control_totals
+	$(PY) -m quality.capture_source_totals
+
+dq-build:  ## 24 DQ rules + cross-layer reconciliation (dbt, tag:dq)
+	$(DBT) build --select tag:dq $(LAYER)
+
+dq-report:  ## every injected defect vs what the rules caught (exit 1 if any missed)
+	$(PY) -m quality.dq_report
+
+verify7:
+	$(PY) -m scripts.verify_phase7
+	$(PY) -m quality.dq_report
+
+# ---------- Phase 8: governance (policy tags, masking, row-level security)
+governance-env:  ## copy policy tag ids + data steward from Terraform into .env
+	bash scripts/governance_env.sh
+
+verify8:  ## prove masking, row-level security and access denials per service account
+	$(PY) -m scripts.verify_phase8
