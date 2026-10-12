@@ -35,6 +35,10 @@ models:
       +schema: gold
       +tags: ["gold"]
       +labels: {layer: gold}
+      reporting:
+        # BI-facing tables: aggregated, untagged columns only, read by sa-reporting
+        +tags: ["reporting"]
+        +labels: {layer: gold, kind: reporting}
     dq:
       # Data quality + reconciliation results. Append-only history in the ops dataset.
       +schema: ops

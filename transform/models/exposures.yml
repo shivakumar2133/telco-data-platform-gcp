@@ -1,0 +1,42 @@
+version: 2
+
+# Exposures put the dashboards on dbt's lineage graph (make dbt-docs): you can see which
+# dashboards break if a model changes, and `dbt build --select +exposure:<name>` rebuilds
+# exactly what a dashboard needs. Replace the url values with your shared report links.
+
+exposures:
+  - name: looker_studio_operations
+    label: Telco Operations (Looker Studio)
+    type: dashboard
+    maturity: medium
+    url: https://lookerstudio.google.com/
+    description: >
+      Five pages - executive KPIs, revenue assurance, network quality, SLA performance and
+      data quality. Built from the rpt_* tables only. Guide: dashboards/looker_studio/BUILD.md
+    owner:
+      name: Data Engineering
+    depends_on:
+      - ref('rpt_kpi_monthly')
+      - ref('rpt_revenue_assurance')
+      - ref('rpt_network_daily')
+      - ref('rpt_sla_performance')
+      - ref('rpt_dq_latest')
+      - ref('rpt_recon_latest')
+
+  - name: powerbi_revenue_and_service
+    label: Revenue and Service (Power BI)
+    type: dashboard
+    maturity: medium
+    url: https://app.powerbi.com/
+    description: >
+      Star-schema model in Power BI (reporting tables + date dimension) with DAX measures for
+      leakage, drop rate and SLA breach %. Guide: dashboards/powerbi/BUILD.md
+    owner:
+      name: Data Engineering
+    depends_on:
+      - ref('rpt_kpi_monthly')
+      - ref('rpt_revenue_assurance')
+      - ref('rpt_network_daily')
+      - ref('rpt_sla_performance')
+      - ref('rpt_customer_base')
+      - ref('dim_date')

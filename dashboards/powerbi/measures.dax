@@ -1,0 +1,63 @@
+// DAX measures. Create a table to hold them: Home -> Enter data -> name it "_Measures"
+// (one empty column, which you can hide), then Modeling -> New measure for each block.
+// Ratios divide SUMS - never average a rate column.
+
+Billed Revenue = SUM ( kpi_monthly[billed_revenue] )
+Rated Usage = SUM ( kpi_monthly[rated_usage] )
+Unbilled Usage = SUM ( kpi_monthly[unbilled_usage] )
+Leakage % of Usage = DIVIDE ( [Unbilled Usage], [Rated Usage] )
+
+Billed Revenue MoM % =
+// Months has one row per month (not a contiguous calendar), so shift with EDATE
+// instead of DATEADD time intelligence
+VAR CurrentMonth = MAX ( Months[month_start] )
+VAR PreviousMonth =
+    CALCULATE (
+        [Billed Revenue],
+        REMOVEFILTERS ( Months ),
+        Months[month_start] = EDATE ( CurrentMonth, -1 )
+    )
+RETURN
+    DIVIDE ( [Billed Revenue] - PreviousMonth, PreviousMonth )
+
+// ---- revenue assurance
+Rated Amount = SUM ( revenue_assurance[rated_amount] )
+Billed Amount = SUM ( revenue_assurance[billed_amount] )
+Variance Amount = SUM ( revenue_assurance[variance_amount] )
+Leaked Amount =
+CALCULATE (
+    [Variance Amount],
+    revenue_assurance[assurance_status] IN { "LEAKAGE", "UNBILLED_NO_ACCOUNT" }
+)
+Leaked Subscriptions =
+CALCULATE (
+    SUM ( revenue_assurance[subscriptions] ),
+    revenue_assurance[assurance_status] IN { "LEAKAGE", "UNBILLED_NO_ACCOUNT" }
+)
+Billing Accuracy % = 1 - DIVIDE ( [Leaked Amount], [Rated Amount] )
+
+// ---- network
+Call Attempts = SUM ( network_daily[call_attempts] )
+Dropped Calls = SUM ( network_daily[dropped_calls] )
+Drop Rate = DIVIDE ( [Dropped Calls], [Call Attempts] )
+Failure Rate = DIVIDE ( SUM ( network_daily[failed_calls] ), [Call Attempts] )
+Drop Rate vs Network =
+// how a region/technology compares with the whole network, ignoring those filters
+[Drop Rate]
+    - CALCULATE ( [Drop Rate], REMOVEFILTERS ( network_daily[region], network_daily[technology] ) )
+
+// ---- service
+Tickets = SUM ( sla_performance[tickets] )
+SLA Breach % =
+DIVIDE ( SUM ( sla_performance[breached_tickets] ), SUM ( sla_performance[measured_tickets] ) )
+Avg Resolution Hours =
+DIVIDE ( SUM ( sla_performance[total_resolution_hours] ), SUM ( sla_performance[measured_tickets] ) )
+
+// ---- customers
+Customers = SUM ( customer_base[customers] )
+Active Subscriptions = SUM ( customer_base[active_subscriptions] )
+Subscriptions per Customer = DIVIDE ( [Active Subscriptions], [Customers] )
+
+// ---- data quality
+Rules Breached = CALCULATE ( COUNTROWS ( dq_latest ), dq_latest[status] = "BREACHED" )
+Rules Clean = CALCULATE ( COUNTROWS ( dq_latest ), dq_latest[status] = "CLEAN" )

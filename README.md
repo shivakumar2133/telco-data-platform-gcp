@@ -23,6 +23,8 @@ Python · SQL · BigQuery · GCS · Airflow · dbt · Terraform · Docker · Git
 - [x] Phase 7: Data quality + reconciliation - 24 rules with tolerances, record-level quarantine, scorecard, source-to-Gold reconciliation, 100% of injected defects detected
 - [x] Phase 8: Governance - PII policy tags (column-level security), de-identified BI columns, row-level security by region, custom least-privilege role for dbt
 - [x] Phase 9: CI/CD - GitHub Actions with keyless Workload Identity Federation, Terraform plan on PRs, dbt deploy on main, sqlfluff, policy-as-tests
+- [ ] Phase 10: Streaming demo with Pub/Sub (optional, skipped for now)
+- [x] Phase 11: Dashboards - PII-free reporting layer (tested totals), Looker Studio and Power BI on the same definitions
 
 ## Source systems
 | System | Tech | Data |
@@ -53,6 +55,7 @@ the data quality checks catch them. See [docs/sources.md](docs/sources.md).
     make dq-capture dq-build verify7                     # DQ rules, reconciliation, defect report
     make governance-env dbt-build verify8                # policy tags, masking, row-level security
     make ci-local                                        # the CI checks, before you push
+    make verify11                                        # reporting tables + KPIs for the dashboards
 
 ## Ingestion (Bronze)
 | Source | Pattern | Bronze table |
@@ -110,6 +113,14 @@ Detection is measured against the 20 injected defect types (`make dq-report`):
 | False positives | 0 |
 
 Design: `docs/adr/0007-data-quality-and-reconciliation.md`.
+
+## Dashboards
+Looker Studio and Power BI read a small **reporting layer** (`rpt_*` tables): aggregated,
+reconciled to the star schema, and free of personal data by construction (a unit test fails if a
+reporting model touches a PII column). Five pages: executive KPIs, revenue assurance, network
+quality, SLA performance, data quality. Build guides and Power BI M/DAX: [dashboards/](dashboards/).
+
+<!-- Add your screenshots: ![Executive](dashboards/screenshots/looker_01_executive.png) -->
 
 ## CI/CD
 | Workflow | Trigger | Cloud identity | What it proves / does |

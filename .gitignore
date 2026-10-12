@@ -41,3 +41,6 @@ local_run/
 
 # Phase 4 Airflow task logs
 orchestration/logs/
+
+# Power BI files with data: commit the .pbit template instead
+*.pbix

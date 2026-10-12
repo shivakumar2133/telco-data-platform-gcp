@@ -26,7 +26,7 @@ TF_VARS    = -var-file=envs/dev.tfvars -var="project_id=$(GCP_PROJECT_ID)" \
         airflow-logs airflow-check airflow-test airflow-backfill \
         dbt-debug dbt-parse dbt-build dbt-build-gold dbt-full-refresh dbt-freshness dbt-docs \
         cost-compare dq-capture dq-build dq-report verify7 governance-env verify8 \
-        sql-lint sql-fix ci-local github-vars verify9
+        sql-lint sql-fix ci-local github-vars verify9 dbt-build-reporting verify11
 
 # ---------- Phase 0
 setup:
@@ -237,3 +237,10 @@ github-vars:  ## copy project ids, WIF provider and policy tag ids into GitHub v
 
 verify9:
 	bash scripts/verify_phase9.sh
+
+# ---------- Phase 11: dashboards (Looker Studio, Power BI) read the reporting layer
+dbt-build-reporting:  ## rebuild only the rpt_* tables (Gold must be built)
+	$(DBT) build --select tag:reporting rpt_dq_latest rpt_recon_latest $(LAYER)
+
+verify11:  ## reporting tables readable by sa-reporting + the KPIs dashboards must show
+	$(PY) -m scripts.verify_phase11

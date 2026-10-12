@@ -64,15 +64,15 @@ resource "google_service_account_iam_member" "transform_from_main" {
 # data of nothing." If a plan fails with a 403, the error names the missing permission.
 resource "google_project_iam_member" "cicd_metadata_read" {
   for_each = toset([
-    "roles/browser",                         # project metadata (number, labels)
-    "roles/bigquery.metadataViewer",         # datasets/tables, no table data
-    "roles/iam.securityReviewer",            # getIamPolicy on everything
-    "roles/iam.roleViewer",                  # the custom dbt governance role
-    "roles/iam.serviceAccountViewer",        # service accounts
-    "roles/iam.workloadIdentityPoolViewer",  # this pool and provider
-    "roles/secretmanager.viewer",            # secret metadata, never the values
-    "roles/serviceusage.serviceUsageViewer", # enabled APIs
-    "roles/datacatalog.viewer",              # policy tag taxonomy
+    "roles/browser",                          # project metadata (number, labels)
+    "roles/bigquery.metadataViewer",          # datasets/tables, no table data
+    "roles/iam.securityReviewer",             # getIamPolicy on everything
+    "roles/iam.roleViewer",                   # the custom dbt governance role
+    "roles/iam.serviceAccountViewer",         # service accounts
+    "roles/iam.workloadIdentityPoolViewer",   # this pool and provider
+    "roles/secretmanager.viewer",             # secret metadata, never the values
+    "roles/serviceusage.serviceUsageViewer",  # enabled APIs
+    "roles/datacatalog.viewer",               # policy tag taxonomy
   ])
 
   project = var.project_id
