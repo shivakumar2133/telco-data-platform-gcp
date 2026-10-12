@@ -1,0 +1,86 @@
+version: 2
+
+# BI-facing tables (Looker Studio, Power BI). Small, aggregated, additive measures only,
+# and no policy-tagged column, so sa-reporting can SELECT * from every one of them.
+# Each is reconciled to the model it summarises: a dashboard total is a tested total.
+
+models:
+  - name: rpt_kpi_monthly
+    description: Headline KPIs per month (billing, assurance, network, service).
+    columns:
+      - name: month
+        data_tests: [unique, not_null]
+      - name: billed_revenue
+        data_tests:
+          - column_sum_matches:
+              arguments:
+                compare_relation: ref('fct_invoice_lines')
+                compare_column: amount
+      - name: call_attempts
+        data_tests:
+          - column_sum_matches:
+              arguments:
+                compare_relation: ref('fct_calls')
+                compare_column: "1"
+      - name: tickets
+        data_tests:
+          - column_sum_matches:
+              arguments:
+                compare_relation: ref('fct_tickets')
+                compare_column: "1"
+
+  - name: rpt_revenue_assurance
+    description: Rated vs billed usage per month, status, segment, region and product.
+    columns:
+      - name: assurance_status
+        data_tests: [not_null]
+      - name: rated_amount
+        data_tests:
+          - column_sum_matches:
+              arguments:
+                compare_relation: ref('mart_revenue_assurance')
+      - name: billed_amount
+        data_tests:
+          - column_sum_matches:
+              arguments:
+                compare_relation: ref('mart_revenue_assurance')
+      - name: subscriptions
+        description: Distinct subscriptions in the group (a subscription is in one group per month).
+        data_tests:
+          - column_sum_matches:
+              arguments:
+                compare_relation: ref('mart_revenue_assurance')
+                compare_column: "1"
+
+  - name: rpt_network_daily
+    description: Calls, drops, minutes and data per day, region and technology.
+    columns:
+      - name: call_attempts
+        description: Drop rate = SUM(dropped_calls) / SUM(call_attempts), computed in the BI tool.
+        data_tests:
+          - column_sum_matches:
+              arguments:
+                compare_relation: ref('mart_cell_daily')
+      - name: dropped_calls
+        data_tests:
+          - column_sum_matches:
+              arguments:
+                compare_relation: ref('mart_cell_daily')
+
+  - name: rpt_sla_performance
+    description: Tickets, SLA breaches and resolution hours per month, priority, service level, category.
+    columns:
+      - name: tickets
+        data_tests:
+          - column_sum_matches:
+              arguments:
+                compare_relation: ref('fct_tickets')
+                compare_column: "1"
+      - name: breached_tickets
+        description: Breach % = breached_tickets / measured_tickets (tickets with a resolution time).
+
+  - name: rpt_customer_base
+    description: Current customers and active subscriptions per region, segment and status.
+    columns:
+      - name: customers
+        data_tests: [not_null]

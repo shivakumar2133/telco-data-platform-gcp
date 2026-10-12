@@ -16,3 +16,7 @@ updates:
     directory: /infra/terraform
     schedule:
       interval: monthly
+    ignore:
+      # Major provider versions are breaking: upgrade deliberately, not by bot
+      - dependency-name: "hashicorp/google"
+        update-types: ["version-update:semver-major"]
