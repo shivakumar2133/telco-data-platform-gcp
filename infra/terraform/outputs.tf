@@ -18,3 +18,8 @@ output "secrets" {
 output "policy_tags" {
   value = { for k, t in google_data_catalog_policy_tag.pii : k => t.name }
 }
+
+# Phase 9: copied into GitHub repository variables by `make github-vars`
+output "wif_provider" {
+  value = google_iam_workload_identity_pool_provider.github.name
+}

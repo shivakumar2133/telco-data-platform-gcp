@@ -1,0 +1,91 @@
+# Runs on every pull request and every push to main. No cloud credentials:
+# these checks prove the code is correct before anything touches GCP.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python:
+    name: Lint + unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements*.txt
+
+      - name: Install
+        run: pip install -r requirements-dev.txt
+
+      - name: pre-commit (ruff, formatting, YAML, private keys)
+        run: pre-commit run --all-files --show-diff-on-failure
+
+      - name: Unit tests (incl. dbt parse, DQ rule coverage, PII tag coverage)
+        env:
+          DBT_SEND_ANONYMOUS_USAGE_STATS: "false"
+        run: pytest -q
+
+      - name: SQL lint (dbt models, sqlfluff)
+        run: >
+          sqlfluff lint transform/models transform/tests transform/snapshots
+          --format github-annotation-native
+
+  dags:
+    name: Airflow DAG integrity
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      AIRFLOW_VERSION: "3.3.2"
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements*.txt
+
+      # Same Airflow version as the Docker image; constraints pin its dependencies
+      - name: Install Airflow
+        run: >
+          pip install "apache-airflow==${AIRFLOW_VERSION}" pytest
+          --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-${AIRFLOW_VERSION}/constraints-3.12.txt"
+
+      - name: DAG tests (import errors, conventions, dependencies)
+        env:
+          PYTHONPATH: orchestration/dags
+          AIRFLOW_HOME: ${{ runner.temp }}/airflow
+          AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+        run: pytest -q tests/dags
+
+  terraform:
+    name: Terraform fmt + validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: hashicorp/setup-terraform@v3
+
+      - name: fmt
+        run: terraform -chdir=infra/terraform fmt -check -recursive -diff
+
+      - name: validate (no backend, no credentials)
+        run: |
+          terraform -chdir=infra/terraform init -backend=false -input=false
+          terraform -chdir=infra/terraform validate

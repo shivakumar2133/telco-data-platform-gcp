@@ -48,4 +48,4 @@ select
     f.record_key,
     f.record_json
 from failures as f
-join catalog as c using (rule_id)
+inner join catalog as c using (rule_id)

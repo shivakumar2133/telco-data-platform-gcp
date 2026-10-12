@@ -28,8 +28,9 @@ billed as (
         l.period_month as usage_month,
         sum(l.amount) as billed_amount
     from {{ ref('fct_invoice_lines') }} as l
-    where l.charge_type = 'USAGE'
-      and l.period_month in (select usage_month from months)
+    where
+        l.charge_type = 'USAGE'
+        and l.period_month in (select usage_month from months)
     group by 1, 2
 ),
 

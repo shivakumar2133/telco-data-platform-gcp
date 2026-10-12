@@ -1,0 +1,101 @@
+# Deploys transformation changes: after CI passes on main, if the push changed dbt
+# code, rebuild Silver -> Gold -> DQ gate in BigQuery, exactly like `make dbt-build`
+# and the Airflow DAG. The job acts as sa-transform through Workload Identity
+# Federation; the IAM binding only accepts tokens issued for the main branch.
+name: Deploy dbt
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: deploy-dbt   # never two builds at once
+  cancel-in-progress: false
+
+jobs:
+  dbt:
+    name: dbt build (Silver, Gold, DQ)
+    # only after a green CI run for a push to main (or a manual run)
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: production   # add required reviewers in Settings -> Environments if wanted
+    env:
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+      BQ_LOCATION: ${{ vars.BQ_LOCATION }}
+      DBT_IMPERSONATE_SA: ""   # the job already IS sa-transform
+      DBT_SEND_ANONYMOUS_USAGE_STATS: "false"
+      DBT_PROFILES_DIR: .
+      DATA_STEWARD: ${{ vars.DATA_STEWARD }}
+      DBT_POLICY_TAG_EMAIL: ${{ vars.DBT_POLICY_TAG_EMAIL }}
+      DBT_POLICY_TAG_PHONE: ${{ vars.DBT_POLICY_TAG_PHONE }}
+      DBT_POLICY_TAG_NAME: ${{ vars.DBT_POLICY_TAG_NAME }}
+      DBT_POLICY_TAG_BIRTH_DATE: ${{ vars.DBT_POLICY_TAG_BIRTH_DATE }}
+      DBT_POLICY_TAG_POSTCODE: ${{ vars.DBT_POLICY_TAG_POSTCODE }}
+      DBT_POLICY_TAG_RAW_RECORD: ${{ vars.DBT_POLICY_TAG_RAW_RECORD }}
+    defaults:
+      run:
+        working-directory: transform
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}  # the commit CI tested
+          fetch-depth: 2
+
+      - name: Did this push change dbt code?
+        id: changes
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] || \
+             git diff --name-only HEAD~1 HEAD | grep -qE '^(transform/|requirements-dbt\.txt)'; then
+            echo "dbt=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "dbt=false" >> "$GITHUB_OUTPUT"; echo "No dbt changes - nothing to deploy."
+          fi
+
+      - uses: actions/setup-python@v6
+        if: steps.changes.outputs.dbt == 'true'
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-dbt.txt
+
+      - name: Install dbt
+        if: steps.changes.outputs.dbt == 'true'
+        run: pip install -r ../requirements-dbt.txt
+
+      - uses: google-github-actions/auth@v3
+        if: steps.changes.outputs.dbt == 'true'
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars.TRANSFORM_SA }}
+
+      - name: Silver
+        if: steps.changes.outputs.dbt == 'true'
+        run: dbt build --select tag:staging tag:silver --indirect-selection buildable
+
+      - name: Gold
+        if: steps.changes.outputs.dbt == 'true'
+        run: dbt build --select tag:gold --indirect-selection buildable
+
+      - name: DQ + reconciliation gate
+        if: steps.changes.outputs.dbt == 'true'
+        run: dbt build --select tag:dq --indirect-selection buildable
+
+      - name: Keep the run results
+        if: always() && steps.changes.outputs.dbt == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: dbt-run-results
+          path: |
+            transform/target/run_results.json
+            transform/logs/dbt.log
+          retention-days: 14

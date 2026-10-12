@@ -36,3 +36,13 @@ variable "archive_retention_days" {
   type        = number
   default     = 90
 }
+
+variable "github_repository" {
+  description = "owner/repo allowed to use Workload Identity Federation (Phase 9)"
+  type        = string
+
+  validation {
+    condition     = can(regex("^[^/]+/[^/]+$", var.github_repository))
+    error_message = "github_repository must look like owner/repo."
+  }
+}

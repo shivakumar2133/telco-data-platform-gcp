@@ -96,7 +96,7 @@ checks as (
            cast((select count(*) from (
                     select _source_file
                     from {{ source('bronze', 'files__alarms') }}
-                    group by _source_file
+                    group by 1
                     having count(*) != max(cast(export_record_count as int64)))) as numeric)
     union all
 
