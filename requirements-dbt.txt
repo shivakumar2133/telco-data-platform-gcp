@@ -1,0 +1,3 @@
+# dbt (Phase 5). Kept separate so the Airflow image can install it in its own venv.
+dbt-core>=1.12,<1.13
+dbt-bigquery>=1.12,<1.13

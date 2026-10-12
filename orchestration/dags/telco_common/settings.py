@@ -31,3 +31,9 @@ def pipeline(module_args: str) -> str:
 def ingest(args: str) -> str:
     """`python -m ingestion.run [--local DIR] <args>`."""
     return pipeline(f"ingestion.run $INGEST_EXTRA_ARGS {args}")
+
+
+def dbt(args: str) -> str:
+    """`dbt <args>` from the dbt virtualenv. target/ and logs/ go to /tmp because
+    the project folder is mounted read-only inside the containers."""
+    return f'cd "$DBT_PROJECT_DIR" && "$DBT_BIN" {args}'

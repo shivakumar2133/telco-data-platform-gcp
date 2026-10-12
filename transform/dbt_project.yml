@@ -1,0 +1,39 @@
+name: telco
+version: "1.0.0"
+config-version: 2
+profile: telco
+
+model-paths: ["models"]
+snapshot-paths: ["snapshots"]
+macro-paths: ["macros"]
+test-paths: ["tests"]
+clean-targets: ["target", "dbt_packages", "logs"]
+
+models:
+  telco:
+    # Column and table descriptions are written into BigQuery itself
+    +persist_docs:
+      relation: true
+      columns: true
+    staging:
+      # Thin views over Bronze: rename, cast, clean, flag. No storage cost.
+      +materialized: view
+      +schema: silver
+      +tags: ["staging"]
+      +labels: {layer: silver, kind: staging}
+    silver:
+      # Current-state tables, updated by MERGE with only the new Bronze rows
+      +materialized: incremental
+      +incremental_strategy: merge
+      +on_schema_change: append_new_columns
+      +schema: silver
+      +tags: ["silver"]
+      +labels: {layer: silver}
+
+snapshots:
+  telco:
+    +tags: ["silver", "scd2"]
+
+data_tests:
+  telco:
+    +store_failures: false

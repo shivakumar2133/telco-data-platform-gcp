@@ -16,6 +16,7 @@ Python · SQL · BigQuery · GCS · Airflow · dbt · Terraform · Docker · Git
 - [x] Phase 2: Terraform - lake bucket, medallion datasets, least-privilege service accounts, Secret Manager
 - [x] Phase 3: Ingestion to Bronze - full + incremental (watermark CDC), files with quarantine, paginated API with retries, audit trail
 - [x] Phase 4: Orchestration - Airflow 3.3 (Docker), 3 DAGs, retries, webhook alerts, backfill by logical date
+- [x] Phase 5: Silver with dbt 1.12 - staging views, incremental MERGE, SCD2 snapshots, 59 tests, asset-triggered DAG
 
 ## Source systems
 | System | Tech | Data |
@@ -41,6 +42,7 @@ the data quality checks catch them. See [docs/sources.md](docs/sources.md).
     make drop-files ingest verify3                       # sources -> Bronze
     make ingest-local                                    # same pipeline offline, no GCP
     make airflow-env airflow-build airflow-up            # Airflow UI on http://localhost:8080
+    make dbt-debug dbt-build                             # Bronze -> Silver
 
 ## Ingestion (Bronze)
 | Source | Pattern | Bronze table |
@@ -61,6 +63,13 @@ Design decisions: `docs/adr/0003-ingestion-design.md`.
 
 Tasks retry twice with exponential backoff and alert a chat webhook on final failure.
 Design decisions: `docs/adr/0004-orchestration.md`.
+
+## Silver layer (dbt)
+`stg_*` views clean and type every Bronze row; entity tables (`crm_customers`, `billing_invoices`,
+`usage_cdrs`, ...) are **incremental MERGEs** that read only new Bronze rows and keep the latest
+version per key. Customers, subscriptions and products have **SCD Type 2** snapshots.
+Tests prove de-duplication, reconciliation to Bronze and standardisation; injected source
+defects surface as warnings. Design: `docs/adr/0005-silver-with-dbt.md`.
 
 ## Security model
 | Service account | Lake bucket | bronze | silver | gold | ops | secrets |

@@ -3,7 +3,7 @@
 
 Extracts the three source databases incrementally (watermark CDC), then runs
 the Bronze reconciliation. If reconciliation passes, the `bronze_ready` asset is
-updated, which will trigger the dbt transformation DAG (Phase 5).
+updated, which triggers the dbt transformation DAG (`telco_transform`).
 
 * **Schedule:** 02:00 UTC daily
 * **Parallelism:** at most 2 source databases extracted at once (protects sources)
@@ -17,10 +17,9 @@ from datetime import timedelta
 
 import pendulum
 from airflow.providers.standard.operators.bash import BashOperator
-from airflow.sdk import DAG, Asset, TaskGroup
+from airflow.sdk import DAG, TaskGroup
+from telco_common.assets import BRONZE_READY
 from telco_common.settings import DEFAULT_ARGS, ingest, pipeline
-
-BRONZE_READY = Asset(name="bronze_ready", uri="telco://bronze/ready")
 
 with DAG(
     dag_id="telco_ingest_daily",

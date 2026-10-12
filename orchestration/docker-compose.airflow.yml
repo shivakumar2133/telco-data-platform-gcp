@@ -36,6 +36,13 @@ x-airflow-common: &airflow-common
     POSTGRES_HOST: telco-postgres
     TICKETS_API_URL: http://telco-tickets-api:8000
     GOOGLE_APPLICATION_CREDENTIALS: /home/airflow/gcloud/application_default_credentials.json
+    # ---- dbt (Phase 5)
+    DBT_BIN: /home/airflow/dbt-venv/bin/dbt
+    DBT_PROJECT_DIR: /opt/project/transform
+    DBT_PROFILES_DIR: /opt/project/transform
+    DBT_TARGET_PATH: /tmp/dbt/target
+    DBT_LOG_PATH: /tmp/dbt/logs
+    DBT_SEND_ANONYMOUS_USAGE_STATS: "false"
   volumes:
     - ./dags:/opt/airflow/dags
     - ./logs:/opt/airflow/logs

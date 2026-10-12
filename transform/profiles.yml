@@ -1,0 +1,19 @@
+# dbt connection profile. No secrets here: values come from environment variables
+# (.env via the Makefile, or the Airflow container), and authentication is your
+# gcloud login IMPERSONATING sa-transform - no key file.
+telco:
+  target: dev
+  outputs:
+    dev:
+      type: bigquery
+      method: oauth
+      project: "{{ env_var('GCP_PROJECT_ID') }}"
+      dataset: silver
+      location: "{{ env_var('BQ_LOCATION', 'us-central1') }}"
+      impersonate_service_account: "{{ env_var('DBT_IMPERSONATE_SA', 'sa-transform@' ~ env_var('GCP_PROJECT_ID') ~ '.iam.gserviceaccount.com') }}"
+      threads: 4
+      priority: interactive
+      job_execution_timeout_seconds: 600
+      job_retries: 1
+      # Cost guard: any single query that would bill more than 2 GB fails instead
+      maximum_bytes_billed: 2000000000

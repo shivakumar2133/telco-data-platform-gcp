@@ -11,7 +11,7 @@ import pytest
 pytest.importorskip("airflow")
 
 DAGS_DIR = Path(__file__).resolve().parents[2] / "orchestration" / "dags"
-EXPECTED = {"telco_ingest_daily", "telco_tickets_hourly", "telco_files_daily"}
+EXPECTED = {"telco_ingest_daily", "telco_tickets_hourly", "telco_files_daily", "telco_transform"}
 
 
 @pytest.fixture(scope="module")
@@ -57,3 +57,15 @@ def test_reconciliation_is_last_and_not_retried(dagbag):
 def test_files_dag_delivers_the_logical_date(dagbag):
     task = dagbag.dags["telco_files_daily"].get_task("deliver_files")
     assert "{{ ds }}" in task.bash_command
+
+
+def test_transform_runs_when_bronze_is_ready(dagbag):
+    """Data-aware scheduling: dbt runs after ingestion publishes bronze_ready, not on a clock."""
+    ingest = dagbag.dags["telco_ingest_daily"].get_task("reconcile_bronze")
+    transform = dagbag.dags["telco_transform"]
+    produced = {a.uri for a in ingest.outlets}
+    assert "telco://bronze/ready" in produced
+    assert type(transform.timetable).__name__ == "AssetTriggeredTimetable"
+    assert "telco://bronze/ready" in repr(transform.timetable.asset_condition)
+    assert [t.task_id for t in transform.tasks] == ["source_freshness", "dbt_build"]
+    assert transform.get_task("dbt_build").trigger_rule == "all_done", "freshness must not block"

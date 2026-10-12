@@ -1,0 +1,45 @@
+version: 2
+
+# Bronze tables written by the ingestion pipeline (Phase 3).
+# Freshness: `dbt source freshness` warns if a table hasn't received data for
+# 26 hours and errors after 72 (based on the _ingested_at lineage column).
+sources:
+  - name: bronze
+    schema: bronze
+    description: Raw data exactly as extracted, append-only, one row per extracted version.
+    config:
+      loaded_at_field: _ingested_at
+      freshness:
+        warn_after: {count: 26, period: hour}
+        error_after: {count: 72, period: hour}
+    tables:
+      - name: mssql__customers
+        description: CRM customers (SQL Server). Every extracted version.
+      - name: mssql__products
+        description: CRM product catalogue (full extract each run).
+      - name: mssql__subscriptions
+        description: CRM subscriptions (SQL Server).
+      - name: oracle__billing_accounts
+        description: Billing accounts (Oracle).
+      - name: oracle__invoices
+        description: Invoice headers (Oracle). Oracle DATE columns arrive as TIMESTAMP.
+      - name: oracle__invoice_lines
+        description: Invoice lines (Oracle), extracted when their invoice changes.
+      - name: oracle__payments
+        description: Payments (Oracle), append-only at source.
+      - name: postgres__sites
+        description: Network sites (PostgreSQL).
+      - name: postgres__cells
+        description: Radio cells (PostgreSQL).
+      - name: postgres__devices
+        description: Network devices (PostgreSQL).
+      - name: files__cdr
+        description: Call detail records from daily CSV files. All columns STRING.
+      - name: files__alarms
+        description: Network alarms from nested JSON exports, flattened. All columns STRING.
+      - name: files__sla_targets
+        description: SLA targets from the business-owned workbook. All columns STRING.
+        config:
+          freshness: null  # the workbook changes a few times a year
+      - name: api__tickets
+        description: Trouble tickets from the REST API. All columns STRING.

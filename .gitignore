@@ -23,7 +23,6 @@ crash.log
 transform/target/
 transform/dbt_packages/
 transform/logs/
-transform/profiles.yml
 
 # Data & generated output
 data_generator/output/

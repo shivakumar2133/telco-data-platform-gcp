@@ -1,5 +1,7 @@
 # Read GCP_PROJECT_ID / GCP_REGION from .env (if present)
 -include .env
+BQ_LOCATION ?= us-central1
+export GCP_PROJECT_ID BQ_LOCATION
 
 VENV := .venv
 PY   := $(VENV)/bin/python
@@ -18,7 +20,8 @@ TF_VARS    = -var-file=envs/dev.tfvars -var="project_id=$(GCP_PROJECT_ID)" \
         drop-files ingest-db ingest-api ingest-files ingest ingest-full simulate-changes \
         ingest-local verify3 \
         airflow-env airflow-build airflow-up airflow-status airflow-down airflow-reset \
-        airflow-logs airflow-check airflow-test airflow-backfill
+        airflow-logs airflow-check airflow-test airflow-backfill \
+        dbt-debug dbt-parse dbt-build dbt-full-refresh dbt-freshness dbt-docs
 
 # ---------- Phase 0
 setup:
@@ -159,3 +162,24 @@ airflow-test:  ## DAG integrity tests, inside the Airflow image
 airflow-backfill:  ## replay September's daily file deliveries
 	$(AIRFLOW) exec airflow-scheduler airflow backfill create --dag-id telco_files_daily \
 		--from-date 2026-09-01 --to-date 2026-09-30 --reprocess-behavior completed
+
+# ---------- Phase 5: dbt Bronze -> Silver (runs as sa-transform via impersonation)
+DBT := cd transform && DBT_PROFILES_DIR=. ../$(VENV)/bin/dbt
+
+dbt-debug:  ## check the connection and impersonation
+	$(DBT) debug
+
+dbt-parse:
+	$(DBT) parse
+
+dbt-build:  ## staging views + incremental merges + snapshots + tests
+	$(DBT) build --select tag:staging tag:silver
+
+dbt-full-refresh:  ## rebuild incremental tables from all of Bronze
+	$(DBT) build --select tag:staging tag:silver --full-refresh
+
+dbt-freshness:
+	$(DBT) source freshness
+
+dbt-docs:  ## lineage + docs site on http://localhost:8081
+	$(DBT) docs generate && $(DBT) docs serve --port 8081

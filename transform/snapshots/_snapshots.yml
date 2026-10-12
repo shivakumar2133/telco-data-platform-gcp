@@ -1,0 +1,43 @@
+version: 2
+
+# SCD Type 2 history. Each `dbt snapshot` (part of `dbt build`) compares the current
+# Silver row with the last recorded version: if updated_at moved, the old version is
+# closed (dbt_valid_to = now) and a new one opened (dbt_valid_to = 9999-12-31).
+#
+# Oracle analogy: what you would build with a MERGE + an end-dated history table,
+# done declaratively. Note a snapshot only sees the state at each run; Bronze keeps
+# every extracted version too, so history could also be rebuilt from Bronze.
+
+snapshots:
+  - name: crm_customers_snapshot
+    relation: ref('crm_customers')
+    description: SCD2 history of customers (address, email, status, segment changes).
+    config:
+      schema: silver
+      unique_key: customer_id
+      strategy: timestamp
+      updated_at: updated_at
+      hard_deletes: invalidate
+      dbt_valid_to_current: "timestamp('9999-12-31')"
+
+  - name: crm_subscriptions_snapshot
+    relation: ref('crm_subscriptions')
+    description: SCD2 history of subscriptions (product, status, end date changes).
+    config:
+      schema: silver
+      unique_key: subscription_id
+      strategy: timestamp
+      updated_at: updated_at
+      hard_deletes: invalidate
+      dbt_valid_to_current: "timestamp('9999-12-31')"
+
+  - name: crm_products_snapshot
+    relation: ref('crm_products')
+    description: SCD2 history of the product catalogue (price changes).
+    config:
+      schema: silver
+      unique_key: product_id
+      strategy: timestamp
+      updated_at: updated_at
+      hard_deletes: invalidate
+      dbt_valid_to_current: "timestamp('9999-12-31')"

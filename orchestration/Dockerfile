@@ -14,3 +14,9 @@ COPY --chown=airflow:root requirements.txt /tmp/pipeline-requirements.txt
 RUN python -m venv /home/airflow/pipeline-venv \
  && /home/airflow/pipeline-venv/bin/pip install --no-cache-dir -U pip \
  && /home/airflow/pipeline-venv/bin/pip install --no-cache-dir -r /tmp/pipeline-requirements.txt
+
+# dbt in a third, separate venv (Phase 5)
+COPY --chown=airflow:root requirements-dbt.txt /tmp/dbt-requirements.txt
+RUN python -m venv /home/airflow/dbt-venv \
+ && /home/airflow/dbt-venv/bin/pip install --no-cache-dir -U pip \
+ && /home/airflow/dbt-venv/bin/pip install --no-cache-dir -r /tmp/dbt-requirements.txt
