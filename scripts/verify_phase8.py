@@ -1,7 +1,8 @@
 """Phase 8 verification: who can see what, tested by acting as each identity.
 
-  column-level  policy tags are attached to the PII columns (Silver, Gold, DQ quarantine)
-  masking       you (data steward) see real values; sa-reporting / sa-analyst see masked ones
+  column-level  policy tags are attached to the PII columns (Silver, Gold, DQ quarantine);
+                you (data steward) can read them, sa-reporting / sa-analyst are denied
+  masking       BI identities read de-identified copies (email_masked, postcode_area, ...)
   row-level     sa-analyst sees only North West rows; sa-reporting sees every region
   table-level   sa-analyst can't read facts; sa-ingest can't read Gold at all
   audit         who queried tables holding personal data in the last 7 days
@@ -84,9 +85,9 @@ def main() -> int:
 
         check(f"{table}.{column} has a policy tag", has_tag)
 
-    # ---- 2. dynamic masking: same customer, three identities
+    # ---- 2. column-level security + de-identified copies, same customer, three identities
     sample_sql = f"""
-        select customer_id, email, postcode, last_name from `{p}.gold.dim_customer`
+        select customer_id, email, postcode from `{p}.gold.dim_customer`
         where is_current and region = '{REGION}' and email is not null and postcode is not null
         order by customer_id limit 1"""
     raw = rows(me, sample_sql)
@@ -97,27 +98,30 @@ def main() -> int:
         r = raw[0]
         check("data steward sees real PII", lambda: f"{r.customer_id}: {r.email}, {r.postcode}")
         for label, c in (("sa-reporting", rep), ("sa-analyst", ana)):
+            denied(
+                f"{label}: raw email column denied",
+                lambda c=c: rows(c, f"select email from `{p}.gold.dim_customer` limit 1"),
+            )
 
             def masked(c=c) -> str:
                 m = rows(
                     c,
-                    f"select email, postcode, last_name from `{p}.gold.dim_customer` "
-                    f"where customer_id = '{r.customer_id}' and is_current",
+                    "select email_masked, postcode_area, customer_name_hash "
+                    f"from `{p}.gold.dim_customer` where customer_id = '{r.customer_id}' "
+                    "and is_current",
                 )[0]
                 domain = r.email.split("@")[1]
-                assert m.email != r.email and m.email.endswith(domain), f"email {m.email}"
-                assert m.postcode != r.postcode and m.postcode[:4] == r.postcode[:4], m.postcode
-                assert m.last_name != r.last_name, "last_name not hashed"
-                return f"email {m.email}, postcode {m.postcode}, last_name {m.last_name[:12]}..."
+                assert m.email_masked == f"XXXXX@{domain}", f"email_masked {m.email_masked}"
+                assert m.postcode_area == r.postcode.split(" ")[0], m.postcode_area
+                assert len(m.customer_name_hash or "") == 64, "name hash missing"
+                return f"{m.email_masked}, {m.postcode_area}, {m.customer_name_hash[:12]}..."
 
-            check(f"{label} sees masked PII", masked)
+            check(f"{label} sees de-identified copies", masked)
 
-    def quarantine_hidden() -> str:
-        n = rows(rep, f"select countif(record_json is not null) n from `{p}.ops.dq_failures`")[0].n
-        assert n == 0, f"{n} raw records visible"
-        return "record_json is NULL for masked readers"
-
-    check("sa-reporting can't read quarantined records", quarantine_hidden)
+    denied(
+        "sa-reporting: quarantined raw records denied",
+        lambda: rows(rep, f"select record_json from `{p}.ops.dq_failures` limit 1"),
+    )
 
     # ---- 3. row-level security
     count_sql = f"select count(*) n from `{p}.gold.dim_customer`"

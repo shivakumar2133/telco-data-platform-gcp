@@ -37,6 +37,12 @@ models:
         policy_tags: ["{{ env_var('DBT_POLICY_TAG_EMAIL', 'unset') }}"]
       - name: postcode
         policy_tags: ["{{ env_var('DBT_POLICY_TAG_POSTCODE', 'unset') }}"]
+      - name: customer_name_hash
+        description: SHA-256 of the customer name. Untagged; joins and COUNT DISTINCT still work.
+      - name: email_masked
+        description: Email with the user part replaced (XXXXX@domain). Untagged, for BI.
+      - name: postcode_area
+        description: Postcode outward code (area, not address). Untagged, for BI.
 
   - name: dim_product
     description: Product, SCD Type 2 (price changes create versions).
@@ -59,6 +65,8 @@ models:
         description: TRUE when the subscription's customer no longer exists in CRM.
       - name: msisdn
         policy_tags: ["{{ env_var('DBT_POLICY_TAG_PHONE', 'unset') }}"]
+      - name: msisdn_masked
+        description: Last 4 digits only (XXXXX1053). Untagged, for BI.
 
   - name: dim_cell
     description: Radio cell with its site (denormalised).

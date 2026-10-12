@@ -83,3 +83,28 @@
     {%- endif -%}
     select 1 as governance_env_ok
 {% endmacro %}
+
+
+{#
+  De-identification functions for BI-facing columns.
+  BigQuery's dynamic data masking (data policies) needs a project inside a Google Cloud
+  ORGANIZATION; a personal project has none. So Gold publishes masked COPIES of PII
+  columns, and the raw columns stay protected by policy tags (column-level security).
+  Oracle analogy: the masked view you'd build when Data Redaction isn't licensed.
+#}
+{% macro pii_hash(column) -%}
+    to_hex(sha256({{ column }}))
+{%- endmacro %}
+
+{% macro mask_email(column) -%}
+    regexp_replace({{ column }}, r'^[^@]+', 'XXXXX')
+{%- endmacro %}
+
+{% macro mask_last4(column) -%}
+    if({{ column }} is null, null, concat('XXXXX', right({{ column }}, 4)))
+{%- endmacro %}
+
+{# UK outward code = the part before the space ("SW1A 1AA" -> "SW1A"): an area, not an address #}
+{% macro postcode_area(column) -%}
+    split(trim({{ column }}), ' ')[safe_offset(0)]
+{%- endmacro %}

@@ -18,6 +18,7 @@ select
     s.customer_id,
     s.product_id,
     s.msisdn,
+    {{ mask_last4('s.msisdn') }} as msisdn_masked,  -- untagged copy for BI
     s.start_date,
     s.end_date,
     s.status,
@@ -30,5 +31,5 @@ left join accounts as a on a.customer_id = s.customer_id
 union all
 
 select
-    -1, 'UNKNOWN', 'UNKNOWN', 'UNKNOWN', cast(null as string), cast(null as date),
+    -1, 'UNKNOWN', 'UNKNOWN', 'UNKNOWN', cast(null as string), cast(null as string), cast(null as date),
     cast(null as date), 'UNKNOWN', true, true

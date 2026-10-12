@@ -19,7 +19,7 @@ Python · SQL · BigQuery · GCS · Airflow · dbt · Terraform · Docker · Git
 - [x] Phase 5: Silver with dbt 1.12 - staging views, incremental MERGE, SCD2 snapshots, 59 tests, asset-triggered DAG
 - [x] Phase 6: Gold star schema - 7 dimensions (SCD2 as-of joins, unknown members), 5 facts, revenue-assurance mart, measured partition/cluster savings
 - [x] Phase 7: Data quality + reconciliation - 24 rules with tolerances, record-level quarantine, scorecard, source-to-Gold reconciliation, 100% of injected defects detected
-- [x] Phase 8: Governance - PII policy tags, dynamic masking per identity, row-level security by region, custom least-privilege role for dbt
+- [x] Phase 8: Governance - PII policy tags (column-level security), de-identified BI columns, row-level security by region, custom least-privilege role for dbt
 
 ## Source systems
 | System | Tech | Data |
@@ -112,12 +112,13 @@ Design: `docs/adr/0007-data-quality-and-reconciliation.md`.
 |---|---|---|---|---|---|---|---|
 | sa-ingest | read/write | write | - | - | write | read | - |
 | sa-transform | read | read | write | write | write | - | real values |
-| sa-reporting | - | - | - | read | read | - | masked |
-| sa-analyst | - | - | - | 3 tables, North West rows only | - | - | masked |
+| sa-reporting | - | - | - | read | read | - | de-identified copies only |
+| sa-analyst | - | - | - | 3 tables, North West rows only | - | - | de-identified copies only |
 
-**Column-level security:** PII columns carry policy tags (`telco-pii` taxonomy); dynamic
-masking shows each identity a different version of the same table, for example
-`jane.doe@example.com` for the data steward and `XXXXX@example.com` for reporting.
+**Column-level security:** PII columns carry policy tags (`telco-pii` taxonomy): only the
+pipeline and the data steward can select `email`; BI identities get Access Denied and use
+`email_masked` (`XXXXX@example.com`), `msisdn_masked`, `customer_name_hash`, `postcode_area`.
+(Dynamic masking needs a Google Cloud organization; this project is personal - see the ADR.)
 **Row-level security:** row access policies by region, re-applied by dbt on every build.
 Design: `docs/adr/0008-governance-column-and-row-security.md`.
 
