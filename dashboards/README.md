@@ -18,6 +18,7 @@ Only the **reporting layer**: small, aggregated tables built by dbt (`transform/
 | `gold.rpt_sla_performance` | month x priority x service level x category | SLA breach %, resolution time |
 | `gold.rpt_customer_base` | region x segment x status | customer counts |
 | `ops.rpt_dq_latest`, `ops.rpt_recon_latest` | rule / check | data quality page |
+| `ops.rpt_pipeline_health` | source object | platform health page (freshness, failures) |
 
 Why a separate layer instead of pointing BI at the star schema:
 1. **No personal data, by construction.** Reporting tables never select a policy-tagged column

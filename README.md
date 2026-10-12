@@ -9,8 +9,57 @@ files and a REST API → GCS/BigQuery medallion → dbt star schema → Looker S
 Headline use case: **revenue assurance and SLA performance**, reconciling rated
 call records against billed invoices, and fault-to-ticket resolution against SLA targets.
 
+## Architecture
+```mermaid
+flowchart LR
+    subgraph Sources["Sources (Docker)"]
+        ORA[(Oracle<br/>billing)]
+        MSS[(SQL Server<br/>CRM)]
+        PG[(PostgreSQL<br/>inventory)]
+        F[/CSV CDRs, JSON alarms,<br/>XLSX SLA/]
+        API{{REST API<br/>tickets}}
+    end
+    subgraph GCP["Google Cloud (Terraform)"]
+        GCS[(GCS lake<br/>landing/raw/<br/>quarantine/archive)]
+        BR[(Bronze<br/>append-only)]
+        SI[(Silver<br/>MERGE + SCD2)]
+        GO[(Gold<br/>star schema)]
+        RP[(Reporting<br/>rpt_*, no PII)]
+        OPS[(ops<br/>audit, DQ, recon)]
+    end
+    ORA & MSS & PG -->|watermark CDC| GCS
+    F -->|validate, quarantine| GCS
+    API -->|paginate, retry| GCS
+    GCS -->|load jobs| BR --> SI --> GO --> RP
+    SI & GO -.->|24 DQ rules,<br/>reconciliation| OPS
+    RP --> LS[Looker Studio]
+    RP --> PBI[Power BI]
+    AF[Airflow 3.3] -.orchestrates.-> GCS
+    GH[GitHub Actions<br/>keyless WIF] -.deploys dbt.-> SI
+    MON[Cloud Monitoring<br/>audit-log alerts] -.watches.-> GCP
+```
+
+## By the numbers
+| | |
+|---|---|
+| Source systems | 7 (3 databases, 3 file formats, 1 REST API) |
+| Rows per month | ~1.2M (1.13M call records) |
+| dbt | 54 models, 3 SCD2 snapshots, 150+ tests |
+| Data quality | 24 rules; **100% of 9,494 injected defects detected, 0 false positives** |
+| Reconciliation | 48 checks per run, source -> Bronze -> Silver -> Gold, to the penny |
+| Revenue assurance | finds exactly the injected leakage: 127 subscriptions, £350.73 |
+| Security | 5 service accounts, no keys anywhere, PII policy tags, row-level security |
+| Automated checks | 79 unit tests, sqlfluff, DAG tests, Terraform validate, on every PR |
+| Monthly cost | inside the GCP free tier (`make cost-report`) |
+
 ## Stack
-Python · SQL · BigQuery · GCS · Airflow · dbt · Terraform · Docker · GitHub Actions · Pub/Sub
+Python · SQL · BigQuery · GCS · Airflow · dbt · Terraform · Docker · GitHub Actions · Cloud Monitoring · Looker Studio · Power BI
+
+## Documentation
+- [Interview guide](docs/interview_guide.md): the project pitch, design stories, likely questions
+- [Runbook](docs/runbook.md): what to do when an alert fires
+- [Architecture decisions](docs/adr/): 11 ADRs, one per major choice
+- [Data model](docs/data_model.md) · [Sources and injected defects](docs/sources.md) · [Dashboards](dashboards/)
 
 ## Status
 - [x] Phase 0: Foundations (env, GCP project, cost guardrails, repo skeleton)
@@ -25,6 +74,7 @@ Python · SQL · BigQuery · GCS · Airflow · dbt · Terraform · Docker · Git
 - [x] Phase 9: CI/CD - GitHub Actions with keyless Workload Identity Federation, Terraform plan on PRs, dbt deploy on main, sqlfluff, policy-as-tests
 - [ ] Phase 10: Streaming demo with Pub/Sub (optional, skipped for now)
 - [x] Phase 11: Dashboards - PII-free reporting layer (tested totals), Looker Studio and Power BI on the same definitions
+- [x] Phase 12: Operations - audit-log alerts (pipeline failures, access probing), pipeline health view, cost per dbt model, runbook
 
 ## Source systems
 | System | Tech | Data |
@@ -56,6 +106,7 @@ the data quality checks catch them. See [docs/sources.md](docs/sources.md).
     make governance-env dbt-build verify8                # policy tags, masking, row-level security
     make ci-local                                        # the CI checks, before you push
     make verify11                                        # reporting tables + KPIs for the dashboards
+    make verify12 cost-report                            # alerts, pipeline health, cost
 
 ## Ingestion (Bronze)
 | Source | Pattern | Bronze table |
@@ -152,6 +203,29 @@ Design: `docs/adr/0008-governance-column-and-row-security.md`.
 No service-account keys: developers impersonate, CI uses Workload Identity Federation.
 Least privilege is tested by `make verify2`. See `docs/adr/0002-iam-secrets-keyless.md`.
 
-## Cost controls
-Budget alert (£20, credits excluded), BigQuery 30 GiB/day query quota,
-free-tier region. See `docs/adr/0001-region-and-free-tier.md`.
+## Monitoring and alerting
+| Signal | From | Goes to |
+|---|---|---|
+| Task failed after retries | Airflow | chat webhook |
+| Test / DQ rule / reconciliation failed | dbt | fails the run, `gold_ready` not published |
+| Pipeline BigQuery job failed | BigQuery audit logs -> log-based metric | Cloud Monitoring email |
+| Repeated access denied (PII probing) | BigQuery audit logs -> log-based metric | Cloud Monitoring email |
+| Source late / stale | `ops.rpt_pipeline_health` (26h / 72h) | dashboard page, `make verify12` |
+| Spend | budget alert, 30 GiB/day quota, 2 GB per-query cap | email / hard stop |
+
+The cloud-side alerts read BigQuery's own audit logs, so they fire even if Airflow is down.
+`make alert-drill` runs a deliberately failing job to prove the email arrives.
+What to do for each alert: [docs/runbook.md](docs/runbook.md). Design: `docs/adr/0011-monitoring-and-cost.md`.
+
+## Cost
+Every dbt job is labelled with the model that ran it, so `make cost-report` shows cost per day,
+per identity (pipeline vs dashboards vs people) and per dbt model, from BigQuery's job history.
+Guards: free-tier region, partitioning + clustering (measured with `make cost-compare`),
+incremental models, 2 GB max per dbt query, 30 GiB/day project quota, £20 budget alert,
+expiring scratch tables. See `docs/adr/0001-region-and-free-tier.md`.
+
+## Tear down
+    make tf-destroy        # removes everything Terraform created (datasets, bucket, IAM, alerts)
+    gcloud storage rm -r gs://$GCP_PROJECT_ID-tfstate   # the state bucket, last
+WIF pools and custom IAM roles are soft-deleted for 7-30 days; re-creating them with the same
+ids in that window needs an `undelete` first.
