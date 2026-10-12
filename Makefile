@@ -27,7 +27,8 @@ TF_VARS    = -var-file=envs/dev.tfvars -var="project_id=$(GCP_PROJECT_ID)" \
         dbt-debug dbt-parse dbt-build dbt-build-gold dbt-full-refresh dbt-freshness dbt-docs \
         cost-compare dq-capture dq-build dq-report verify7 governance-env verify8 \
         sql-lint sql-fix ci-local github-vars verify9 dbt-build-reporting verify11 \
-        cost-report alert-drill verify12
+        cost-report alert-drill verify12 \
+        spark-setup spark-test spark-local spark-submit spark-compare verify13
 
 # ---------- Phase 0
 setup:
@@ -256,3 +257,31 @@ alert-drill:  ## run a deliberately failing job as sa-transform: expect an alert
 
 verify12:
 	$(PY) -m scripts.verify_phase12
+
+# ---------- Phase 13: the same mart in PySpark (local, and Dataproc Serverless)
+SPARK_SA  = sa-spark@$(GCP_PROJECT_ID).iam.gserviceaccount.com
+SPARK_OUT = $(GCP_PROJECT_ID).scratch.spark_cell_daily
+
+spark-setup:  ## local PySpark (needs Java 17: sudo apt install -y openjdk-17-jre-headless)
+	@java -version >/dev/null 2>&1 || (echo "Install Java first: sudo apt install -y openjdk-17-jre-headless" && exit 1)
+	$(PY) -m pip install -r requirements-spark.txt
+
+spark-test:  ## Spark transformations on tiny DataFrames (local, no cloud)
+	$(PY) -m pytest -q tests/spark
+
+spark-local:  ## run on the local Parquet lake from `make ingest-local`
+	$(PY) -m spark.cell_daily --local local_run --output local_run/spark/cell_daily
+
+spark-submit:  ## Dataproc Serverless batch as sa-spark: Bronze -> scratch.spark_cell_daily (~5-10p)
+	gcloud dataproc batches submit pyspark spark/cell_daily.py \
+		--project=$(GCP_PROJECT_ID) --region=$(GCP_REGION) --version=2.3 \
+		--subnet=spark-subnet --service-account=$(SPARK_SA) \
+		--deps-bucket=gs://$(GCP_PROJECT_ID)-lake \
+		--labels=app=telco,job=spark-cell-daily \
+		--properties=spark.driver.cores=4,spark.executor.cores=4,spark.executor.instances=2,spark.dynamicAllocation.maxExecutors=2 \
+		-- --project $(GCP_PROJECT_ID) --output $(SPARK_OUT)
+
+spark-compare:  ## Spark output vs dbt, day by region, plus what each path cost
+	$(PY) -m scripts.compare_spark_dbt
+
+verify13: spark-test spark-compare

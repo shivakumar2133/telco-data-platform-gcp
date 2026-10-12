@@ -49,16 +49,17 @@ flowchart LR
 | Reconciliation | 48 checks per run, source -> Bronze -> Silver -> Gold, to the penny |
 | Revenue assurance | finds exactly the injected leakage: 127 subscriptions, £350.73 |
 | Security | 5 service accounts, no keys anywhere, PII policy tags, row-level security |
-| Automated checks | 79 unit tests, sqlfluff, DAG tests, Terraform validate, on every PR |
+| Automated checks | 83 unit tests (incl. Spark), sqlfluff, DAG tests, Terraform validate, on every PR |
+| Spark vs SQL | same mart in PySpark: 390/390 day x region groups identical to dbt |
 | Monthly cost | inside the GCP free tier (`make cost-report`) |
 
 ## Stack
-Python · SQL · BigQuery · GCS · Airflow · dbt · Terraform · Docker · GitHub Actions · Cloud Monitoring · Looker Studio · Power BI
+Python · SQL · BigQuery · GCS · Airflow · dbt · PySpark (Dataproc Serverless) · Terraform · Docker · GitHub Actions · Cloud Monitoring · Looker Studio · Power BI
 
 ## Documentation
 - [Interview guide](docs/interview_guide.md): the project pitch, design stories, likely questions
 - [Runbook](docs/runbook.md): what to do when an alert fires
-- [Architecture decisions](docs/adr/): 11 ADRs, one per major choice
+- [Architecture decisions](docs/adr/): 12 ADRs, one per major choice
 - [Data model](docs/data_model.md) · [Sources and injected defects](docs/sources.md) · [Dashboards](dashboards/)
 
 ## Status
@@ -75,6 +76,7 @@ Python · SQL · BigQuery · GCS · Airflow · dbt · Terraform · Docker · Git
 - [ ] Phase 10: Streaming demo with Pub/Sub (optional, skipped for now)
 - [x] Phase 11: Dashboards - PII-free reporting layer (tested totals), Looker Studio and Power BI on the same definitions
 - [x] Phase 12: Operations - audit-log alerts (pipeline failures, access probing), pipeline health view, cost per dbt model, runbook
+- [x] Phase 13: Spark comparison - the same mart in PySpark on Dataproc Serverless, unit-tested, reconciled to dbt to the row
 
 ## Source systems
 | System | Tech | Data |
@@ -107,6 +109,7 @@ the data quality checks catch them. See [docs/sources.md](docs/sources.md).
     make ci-local                                        # the CI checks, before you push
     make verify11                                        # reporting tables + KPIs for the dashboards
     make verify12 cost-report                            # alerts, pipeline health, cost
+    make spark-setup spark-test spark-submit verify13    # PySpark version of a mart, compared with dbt
 
 ## Ingestion (Bronze)
 | Source | Pattern | Bronze table |
@@ -202,6 +205,12 @@ Design: `docs/adr/0008-governance-column-and-row-security.md`.
 
 No service-account keys: developers impersonate, CI uses Workload Identity Federation.
 Least privilege is tested by `make verify2`. See `docs/adr/0002-iam-secrets-keyless.md`.
+
+## Spark comparison
+`spark/cell_daily.py` rebuilds `mart_cell_daily` in PySpark straight from Bronze - locally or on
+Dataproc Serverless (no cluster), reading and writing BigQuery through the Storage APIs.
+`make spark-compare` proves both produce the same numbers and prints what each cost. Why dbt stays
+the default, and when Spark would win: `docs/adr/0012-spark-vs-sql.md`.
 
 ## Monitoring and alerting
 | Signal | From | Goes to |

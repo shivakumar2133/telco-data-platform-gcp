@@ -7,6 +7,7 @@
 #   reporting -              -        -        read    read     -
 #   analyst   -              -        -        3 tables, North West rows only, PII masked
 #   cicd      metadata only (Terraform plan): sees the shape of everything, the data of nothing
+#   spark     read           read     -        -       -        -    + writes scratch only
 locals {
   service_accounts = {
     ingest    = "Extracts sources, lands files in GCS, loads Bronze"
@@ -14,6 +15,7 @@ locals {
     reporting = "Read-only access to Gold for dashboards (Looker Studio, Power BI)"
     analyst   = "Regional analyst: row-level security demo (one region, masked PII)"
     cicd      = "GitHub Actions on pull requests: Terraform plan (metadata read-only)"
+    spark     = "Dataproc Serverless batches: read Bronze, write scratch (Phase 13)"
   }
 
   # Built from strings (not resource attributes) so they are known at plan time

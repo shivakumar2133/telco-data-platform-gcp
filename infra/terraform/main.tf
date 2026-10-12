@@ -15,6 +15,9 @@ locals {
     "serviceusage.googleapis.com",
     "billingbudgets.googleapis.com",
     "pubsub.googleapis.com",
+    # Phase 13: Dataproc Serverless (Spark) and the VPC subnet it runs in
+    "dataproc.googleapis.com",
+    "compute.googleapis.com",
     "logging.googleapis.com",
     "monitoring.googleapis.com",
   ]
